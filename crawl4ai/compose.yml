@@ -1,0 +1,12 @@
+services:
+  crawl4ai:
+    image: unclecode/crawl4ai:latest
+    ports:
+      - "11235:11235"
+    volumes:
+      - crawl4ai_data:/tmp/crawl4ai
+    shm_size: 1g
+    restart: unless-stopped
+
+volumes:
+  crawl4ai_data:

@@ -1,0 +1,9 @@
+services:
+  workshop-docs:
+    image: nginx:alpine
+    container_name: docsify_workshop
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/usr/share/nginx/html
+    restart: unless-stopped

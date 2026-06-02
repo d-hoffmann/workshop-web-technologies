@@ -1,0 +1,8 @@
+- [Welcome](docs/00-welcome.md)
+- [Setup](docs/01-setup.md)
+- **Event Research Agent**
+- [Module 1: Hello Agent & Tools](docs/02-hello-agent.md)
+- [Module 2: Session State](docs/03-session-state.md)
+- [Module 3: Multi-Agent Pipeline](docs/04-multi-agent.md)
+- **MCP**
+- [Module 4: MCP Game](docs/05-mcp-game.md)

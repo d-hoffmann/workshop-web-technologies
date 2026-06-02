@@ -1,0 +1,24 @@
+{
+  "name": "workshop-opencode",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "npx adk run agent.ts",
+    "dev": "npx adk web",
+    "api": "npx adk api_server",
+    "deploy": "npx adk deploy"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@google/adk": "^1.1.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@google/adk-devtools": "^1.1.0",
+    "typescript": "^6.0.3"
+  }
+}
