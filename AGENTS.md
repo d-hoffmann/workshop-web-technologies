@@ -6,35 +6,38 @@ A multi-step workshop for building AI agents with **Google ADK**, a self-hosted 
 
 | Path | Purpose |
 |---|---|
-| `agent.ts` | Reference ADK agent (default export from `@google/adk`) |
-| `docs/` | Docsify documentation site (served via nginx on port 8080) |
-| `exercises/01-*` … `05-*` | Workshop exercise directories — mostly empty placeholders (`.gitkeep`) |
-| `mcp-server/` | MCP server (src/index.ts is a placeholder) |
+| `agent.ts` | Reference ADK agent — canonical example with `FunctionTool` + Zod |
+| `docs/` | Docsify site (nginx, port 8080); content lives in `docs/pages/` |
+| `mcp-server/` | MCP server — not yet scaffolded in the repo |
 | `crawl4ai/` | Crawl4AI service (port 11235) with Docker Compose |
 | `.opencode/` | OpenCode config: custom agent (`google-adk-dev`), commit skill & command |
 
+`docs/docs/` is a stale duplicate of `docs/pages/` — do not edit it, it is not served.
+
 ## Commands
 
-All commands are defined in root `package.json` and use `npx adk`:
+Package manager is **pnpm** (lockfile is `pnpm-lock.yaml`). Use `pnpm` not `npm`.
 
 | Command | What it runs |
 |---|---|
-| `npm start` | `npx adk run agent.ts` |
-| `npm run dev` | `npx adk web` (launch ADK dev UI) |
-| `npm run api` | `npx adk api_server` |
-| `npm run deploy` | `npx adk deploy` |
-| `npm install` | Installs `@google/adk`, `@google/adk-devtools`, `typescript` |
+| `pnpm start` | `npx adk run agent.ts` |
+| `pnpm dev` | `npx adk web --reload` (ADK dev UI) |
+| `pnpm api` | `npx adk api_server` |
+| `pnpm install` | Installs deps |
+
 
 ## Setup
 
 ```bash
-cp .env.sample .env   # then fill in GEMINI_API_KEY
-npm install
+cp .env.sample .env   # fill in GEMINI_API_KEY and TAVILY_API_KEY
+pnpm install
 ```
+
+Both `GEMINI_API_KEY` and `TAVILY_API_KEY` are required (search agent exercises need Tavily).
 
 ## Services (Docker Compose)
 
-Start individually from each directory, or compose multi-service:
+Start from each service directory:
 
 | Service | Port | Dir |
 |---|---|---|
@@ -44,13 +47,22 @@ Start individually from each directory, or compose multi-service:
 
 ## Key conventions
 
-- TypeScript with `NodeNext` module resolution — use `.js` extensions in relative imports
-- ADK agents: `import { Agent } from "@google/adk"`; callable tools via `FunctionTool` with Zod
-- Root `agent.ts` is the canonical example (weather + currency tools)
+- TypeScript with `NodeNext` module resolution — **use `.js` extensions in relative imports**
+- `tsconfig.json` only includes root-level `*.ts` files (`"include": ["*.ts"]`); exercise files need their own tsconfig or to be added
+- ADK agents: `import { Agent, FunctionTool } from "@google/adk"`; tools use Zod schemas
 - Default model: `gemini-2.5-flash`
 - `.env` is gitignored; `.env.sample` is the template
 - Commits follow conventional commits (see `.opencode/skills/commit/`)
 
+## Docs site (`docs/`)
+
+- All CDN script/link tags must use `https://` — protocol-relative `//` URLs break on Firefox/HTTP
+- Content is in `docs/pages/`; `_sidebar.md` and `index.html` reference `pages/xx.md` paths
+- `docs/docs/` is an unreferenced stale copy — safe to delete
+- `docs/pages/07-mcp-game.md` exists but is not linked in `_sidebar.md`
+
 ## Agent instructions
 
 `opencode.json` sets `default_agent` to `google-adk-dev`. The `.opencode/agents/google-adk-dev.md` file contains ADK API reference, scaffold commands, and best practices — consult it when writing or modifying agents.
+
+`opencode.json` also configures an `adk-docs` MCP server (via `uvx`/`mcpdoc`) that serves live ADK documentation — available as a tool in OpenCode sessions.

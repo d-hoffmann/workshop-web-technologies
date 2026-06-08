@@ -59,7 +59,7 @@ cd crawl4ai && docker compose up -d
 ## Running the agent
 
 ```bash
-npm run dev     # ADK dev UI at http://localhost:8080
+npm run dev     # ADK dev UI at http://localhost:8000
 npm start       # run in terminal (no UI)
 ```
 
