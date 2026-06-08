@@ -180,7 +180,7 @@ instruction: `
 
 After making the change:
 
-1. Run `npm run dev` and ask: *"Find techno events in Cologne this weekend"*
+1. Run `npm run dev` and ask: *"Find techno events in Cologne this friday"*
 2. Open the **State** tab in the dev UI
 3. You should see `date` and `userQuery` appear
 

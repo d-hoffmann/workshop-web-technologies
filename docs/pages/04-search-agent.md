@@ -10,6 +10,58 @@
 
 ---
 
+## Subagents & the orchestrator pattern
+
+The search agent you build in this module is not a standalone agent — it is a **subagent** (also called a *specialist*). It will be called by a higher-level **orchestrator** agent in Module 5.
+
+### Why split into subagents?
+
+A single monolithic agent that searches, crawls, and formats output is hard to reason about and hard to reuse. Splitting by responsibility gives you:
+
+- **Focused instructions** — each agent has one job, so its prompt is short and precise
+- **Swappable parts** — you can replace `SearchAgent` with a different search backend without touching the crawl logic
+- **Better observability** — each agent's tool calls and state writes are scoped and easy to trace in the dev UI
+
+### How the orchestrator calls a subagent
+
+In ADK, a subagent is exposed to the orchestrator via `AgentTool`. The orchestrator's LLM reads the subagent's `description` field to decide *when* to invoke it — exactly like a `FunctionTool`:
+
+```typescript
+import { LlmAgent, AgentTool } from "@google/adk";
+import { searchAgent } from "./agents/search.js";
+
+const orchestrator = new LlmAgent({
+  // ...
+  tools: [
+    new AgentTool({ agent: searchAgent }),  // ← searchAgent becomes a callable tool
+  ],
+});
+```
+
+When the orchestrator calls `SearchAgent`:
+
+1. A child `InvocationContext` is created — the subagent runs in its own turn
+2. The subagent **reads** values the orchestrator already wrote to `session.state` (e.g. `{city}`, `{genre}`, `{dateHint}`)
+3. The subagent calls `tavily_search`, formats the results, and writes them to `state["searchResults"]` via `outputKey`
+4. Control returns to the orchestrator, which can now read `state["searchResults"]`
+
+```
+Orchestrator
+    │
+    │  writes → state["city"], state["genre"], state["dateHint"]
+    │
+    └── AgentTool → SearchAgent
+            │  reads ← state["city"], state["genre"], state["dateHint"]
+            │  calls tavily_search
+            └── writes → state["searchResults"]   (via outputKey)
+```
+
+> **The `description` is the contract.** The orchestrator never sees the subagent's instruction — only its `name` and `description`. Write the description so it clearly answers: *"what does this agent do and when should I call it?"*
+
+You will wire this in Module 5. For now, focus on building `SearchAgent` so it works correctly in isolation — verify it in the dev UI before connecting it to the orchestrator.
+
+---
+
 ## Tavily Search API
 
 [Tavily](https://tavily.com) is a search API built for AI agents. Unlike scraping Google directly, it returns clean, structured results with a **relevance score** per result — ideal for agents that need to rank or filter.
