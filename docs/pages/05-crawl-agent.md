@@ -280,11 +280,13 @@ export const crawlTool = new FunctionTool({
 
 ```typescript
 // agents/crawl.ts
-import { LlmAgent, type CallbackContext } from "@google/adk";
+import { LlmAgent, FunctionTool, AgentTool, type CallbackContext } from "@google/adk";
 import { Schema, Type, type Content } from "@google/genai";
+import { z } from "zod";
 import { crawlTool, fetchFitMarkdown } from "../tools/crawlTool.js";
+import { searchAgent } from "./search.js";
 
-// Pre-fetch all pages before the LLM runs
+// Pre-fetch callback
 async function prefetchPages(
   context: CallbackContext
 ): Promise<Content | undefined> {
@@ -316,25 +318,12 @@ async function prefetchPages(
   return undefined;
 }
 
-const eventSchema: Schema = {
-  type: Type.ARRAY,
-  items: {
-    type: Type.OBJECT,
-    properties: {
-      name:        { type: Type.STRING, description: "Event name" },
-      location:    { type: Type.STRING, description: "Venue name and address" },
-      description: { type: Type.STRING, description: "Short event description" },
-      time:        { type: Type.STRING, description: "Date and start time" },
-      price:       { type: Type.STRING, description: "Ticket price or price range" },
-      url:         { type: Type.STRING, description: "Source URL" },
-    },
-    required: ["name", "location", "description", "time", "price", "url"],
-  },
-};
+const eventSchema: Schema = { /* ... see below ... */ };
 
+// Named export — imported by the orchestrator in Module 5
 export const crawlAgent = new LlmAgent({
   name: "CrawlAgent",
-  model: "gemini-3.1-flash-lite",
+  model: "gemini-2.0-flash",
   description: "Extracts structured event data from pre-fetched web pages.",
   beforeAgentCallback: prefetchPages,
   instruction: `
@@ -347,26 +336,66 @@ export const crawlAgent = new LlmAgent({
     Pre-fetched page content is available in session state under
     "prefetchedMarkdown" as an array of {url, markdown} objects.
 
-    For each page, extract:
-    - name: event name
-    - location: venue name and address
-    - description: 1–2 sentence summary
-    - time: date and start time
-    - price: ticket price or price range
-    - url: the source URL
-
+    For each page, extract: name, location, description, time, price, url.
     Use "NA" for any field you cannot find.
 
     If a page's markdown is empty or clearly insufficient (less than
-    50 words of relevant content), call crawl_page ONCE for that URL
-    to attempt a fresh fetch. Do not call crawl_page more than once
-    per URL.
+    50 words of relevant content), call crawl_page ONCE for that URL.
 
     Output a JSON array of event objects. No extra text.
   `,
   tools: [crawlTool],
   outputSchema: eventSchema,
   outputKey: "crawledEvents",
+});
+
+// Default export — test harness for pnpm dev / pnpm start
+//
+// CrawlAgent reads state["searchResults"] (written by SearchAgent).
+// If you exported crawlAgent as the default and ran pnpm dev, that key
+// would be empty — beforeAgentCallback would find no URLs and the agent
+// would produce an empty result.
+//
+// This harness runs the full search → crawl mini-pipeline so you can test
+// CrawlAgent in isolation without the real orchestrator from Module 5.
+const getCurrentDate = new FunctionTool({
+  name: "get_current_date",
+  description: "Returns today's date and writes it to session state.",
+  parameters: z.object({}),
+  execute: async (_params, context) => {
+    const date = new Date().toLocaleDateString("de-DE", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
+    });
+    context.state["date"] = date;
+    return { date };
+  },
+});
+
+export default new LlmAgent({
+  name: "CrawlTestHarness",
+  model: "gemini-2.5-flash",
+  description: "Dev-only wrapper for testing CrawlAgent in isolation.",
+  instruction: `
+    You are a test harness for the CrawlAgent subagent.
+
+    On every message:
+    1. Call get_current_date to write today's date to state.
+    2. Extract from the user's message:
+       - city (REQUIRED — ask if missing)
+       - genre (use "" if not specified)
+       - dateHint (REQUIRED — ask if missing)
+       Write all three directly to session state.
+    3. Only proceed once you have both city and a date hint.
+    4. Call SearchAgent to find relevant event URLs.
+    5. Call CrawlAgent to extract structured event details from those pages.
+    6. Summarise the results: list each event with name, venue, time, and price.
+       If no events were found or all fields are "NA", say so honestly.
+  `,
+  tools: [
+    getCurrentDate,
+    new AgentTool({ agent: searchAgent }),
+    new AgentTool({ agent: crawlAgent }),
+  ],
 });
 ```
 
@@ -392,33 +421,61 @@ Create `tools/crawlTool.ts`:
 
 ### Step 7 — Create the Crawl Agent
 
-Create `agents/crawl.ts`:
+Create `agents/crawl.ts` with two exports:
 
-1. Write a `prefetchPages` async function matching the `beforeAgentCallback` signature:
+**Named export — `crawlAgent`:**
+
+1. Import `LlmAgent, FunctionTool, AgentTool, type CallbackContext` from `@google/adk`
+2. Import `Schema, Type, type Content` from `@google/genai`
+3. Import `z` from `zod`, `crawlTool` and `fetchFitMarkdown` from `../tools/crawlTool.js`, and `searchAgent` from `./search.js`
+4. Write a `prefetchPages` async function matching the `beforeAgentCallback` signature:
    - Reads `state["searchResults"]`
    - Resets `state["crawlCallCount"] = 0`
    - Calls `fetchFitMarkdown` for each URL (use `Promise.allSettled` to tolerate failures)
    - Writes results to `state["prefetchedMarkdown"]`
    - Returns `undefined`
-2. Define `eventSchema` with `Schema`/`Type` from `@google/genai` — six fields, all required
-3. Create the `LlmAgent` with:
-   - `model: "gemini-3.1-flash-lite"`
+5. Define `eventSchema` with `Schema`/`Type` from `@google/genai` — six fields, all required
+6. Export `crawlAgent` as a named `const` with:
+   - `model: "gemini-2.0-flash"`
    - `beforeAgentCallback: prefetchPages`
    - `tools: [crawlTool]`
    - `outputSchema: eventSchema`
    - `outputKey: "crawledEvents"`
    - The prompt injection defence instruction
 
-**Test it in isolation:** temporarily add the crawl agent as the default export in `agent.ts`, manually populate `searchResults` in state via the dev UI State tab, then send a message to trigger the agent.
+**Default export — test harness:**
+
+7. Create a `get_current_date` `FunctionTool` (same as in `agent.ts`)
+8. Add a `export default new LlmAgent(...)` — the `CrawlTestHarness` — that:
+   - Uses `model: "gemini-2.5-flash"`
+   - Has `getCurrentDate`, `new AgentTool({ agent: searchAgent })`, and `new AgentTool({ agent: crawlAgent })` in its `tools` array
+   - Has an instruction that collects `city`/`genre`/`dateHint` from the user, calls `SearchAgent` to populate `searchResults`, then calls `CrawlAgent`
+
+**Why the harness runs SearchAgent too:** `CrawlAgent`'s `beforeAgentCallback` reads `state["searchResults"]` before the LLM even runs. If that key is empty, the callback has no URLs to pre-fetch, `prefetchedMarkdown` stays empty, and the agent produces an empty array. The harness ensures the full pipeline runs in the correct order.
 
 ---
 
 ### ✅ Done when…
 
-- The **State** tab shows `prefetchedMarkdown` (array of `{url, markdown}`) after the agent starts
+**To test:** make sure Crawl4AI is running, then point `pnpm dev` at the crawl agent file:
+
+```bash
+# In crawl4ai/ directory:
+docker compose up -d
+# Health check:
+curl http://localhost:11235/health
+
+# Then in the project root:
+npx adk web agents/crawl.ts
+```
+
+Ask: *"Find techno events in Cologne this weekend"*
+
+- The harness calls `get_current_date`, writes `city`/`genre`/`dateHint` to state, calls `SearchAgent`, then calls `CrawlAgent`
+- The **State** tab shows `prefetchedMarkdown` (array of `{url, markdown}`) after the crawl agent starts
 - The **State** tab shows `crawledEvents` as a JSON array of event objects with `name`, `location`, `description`, `time`, `price`, `url`
 - Fields that couldn't be found show `"NA"`
-- You can see `beforeAgentCallback` pre-fetch activity and optionally a `crawl_page` tool call in the **Events** tab
+- The **Events** tab shows `SearchAgent` and `CrawlAgent` invocations, with `beforeAgentCallback` pre-fetch activity visible inside `CrawlAgent`
 
 ---
 
