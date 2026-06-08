@@ -11,6 +11,6 @@
     "declaration": true,
     "sourceMap": true
   },
-  "include": ["*.ts"],
+  "include": ["*.ts", "agents/**/*.ts", "tools/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
