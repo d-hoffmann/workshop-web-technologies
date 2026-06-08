@@ -26,7 +26,7 @@ const agent = new Agent({
 export default agent;
 ```
 
-Run it with `npx adk web` and open [localhost:8080](http://localhost:8080).
+Run it with `npx adk web` and open [localhost:8000](http://localhost:8000).
 
 ---
 
@@ -90,7 +90,7 @@ The `agent.ts` in the repo root is already runnable. Start the dev UI:
 npm run dev
 ```
 
-Open [http://localhost:8080](http://localhost:8080) and ask the agent:
+Open [http://localhost:8000](http://localhost:8000) and ask the agent:
 
 > *"What events are happening in Cologne this weekend?"*
 

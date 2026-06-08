@@ -88,7 +88,7 @@ cd docs && docker compose up -d
 # 3. Start Crawl4AI (needed for Module 4)
 cd crawl4ai && docker compose up -d
 
-# 4. Launch the ADK dev UI (stop docs first — same port, or use --port 3000)
+# 4. Launch the ADK dev UI
 npm run dev
 ```
 
