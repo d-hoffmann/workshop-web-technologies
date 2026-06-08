@@ -1,2 +1,27 @@
-node_modules
+# dependencies
+node_modules/
+
+# environment — never commit secrets
 .env
+.env.local
+.env.*.local
+
+# TypeScript build output
+dist/
+build/
+*.js.map
+*.d.ts.map
+
+# ADK / runtime artefacts
+__pycache__/
+.adk/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

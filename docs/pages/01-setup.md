@@ -28,7 +28,7 @@ TAVILY_API_KEY=your_tavily_key_here
 Sign up, go to **API Keys**, and copy your key (starts with `tvly-`).
 The free tier gives you **1 000 search credits per month** — more than enough for this workshop.
 
-> **Note on model IDs:** This workshop uses `gemini-2.5-flash` for the orchestrator and `gemini-3.1-flash-lite` for sub-agents. Check [ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs/models).
+> **Note on model IDs:** This workshop uses `gemini-2.5-flash` for the orchestrator and `gemini-3.1-flash-lite` for sub-agents. Check [ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs/models) for the exact current model string if you get a "model not found" error — preview model IDs sometimes include a date suffix.
 
 ## 3. Start Crawl4AI (for Module 4)
 

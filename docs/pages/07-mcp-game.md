@@ -1,4 +1,4 @@
-# Module 4 — MCP & the Interactive Fiction Game
+# Module 6 — MCP & the Interactive Fiction Game
 
 ## What is MCP?
 
@@ -77,10 +77,10 @@ npm install
 npm run dev
 ```
 
-Then from the exercise directory:
+Then from the repo root:
 
 ```bash
-npx adk web
+npm run dev
 ```
 
 Tell the agent: *"Start the game"* — and explore!
@@ -89,7 +89,7 @@ Tell the agent: *"Start the game"* — and explore!
 
 ## Exercise
 
-> **Stuck?** Check out the solution branch: `git checkout solution/04-mcp-game`
+> **Stuck?** Check out the solution branch: `git checkout solution/06-mcp-game`
 
 ### Before you start
 
@@ -111,7 +111,7 @@ curl http://localhost:3100/health
 
 ### Step — Connect to the MCP server
 
-Open `agent.ts` and replace the placeholder with a real `MCPToolset`:
+Open `agent.ts` and replace the orchestrator with a standalone game agent using `MCPToolset`:
 
 ```typescript
 import { Agent, MCPToolset } from "@google/adk";
@@ -143,8 +143,6 @@ export default agent;
 
 ### Play the game
 
-Start the dev UI:
-
 ```bash
 npm run dev
 ```
@@ -159,19 +157,24 @@ Tell the agent: *"Start the game"* and follow the prompts.
 
 - The agent lists available game actions (look around, move, pick up, etc.)
 - You complete at least one puzzle or reach a new room
-- You can see MCP tool calls in the dev UI Events tab
+- You can see MCP tool calls in the dev UI **Events** tab
 
-**What you built:**
+---
 
-| Exercise | What you learned |
-|----------|-----------------|
-| 01 | Agents, tools, the ADK dev UI |
-| 02 | Session state — how agents share data |
-| 03 | Multi-agent orchestration, Google Search, Crawl4AI |
-| 04 | MCP — tool discovery without hardcoding |
+## What you built
+
+| Module | What you learned |
+|--------|-----------------|
+| 1 | Agents, tools, the ADK dev UI |
+| 2 | Session state — how agents share data, state injection, scoping |
+| 3 | Structured output with Tavily and `outputSchema` |
+| 4 | Headless browser scraping, `beforeAgentCallback`, prompt injection defence |
+| 5 | Multi-agent orchestration with `AgentTool`, full pipeline wiring |
+| 6 | MCP — tool discovery without hardcoding |
 
 **Where to go next:**
-- Add more sources to the research pipeline (RSS, ticketing APIs)
+- Add more sources to the research pipeline (RSS feeds, ticketing APIs like Ticketmaster)
 - Build your own MCP server for a domain you care about
 - Deploy with `npx adk deploy cloud_run`
 - Explore ADK callbacks for logging, guardrails, and observability
+- Add `user:` scoped state to remember a user's city and genre preferences across sessions

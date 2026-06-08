@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "npx adk run agent.ts",
-    "dev": "npx adk web",
+    "dev": "npx adk web --reload ",
     "api": "npx adk api_server",
     "deploy": "npx adk deploy"
   },
