@@ -5,8 +5,9 @@
 - `FunctionTool` for external REST APIs — calling Tavily from a tool
 - `outputSchema` — enforcing a JSON structure on an agent's response
 - `outputKey` — auto-saving an agent's structured response to session state
-- `gemini-3.1-flash-lite` — a fast, cheap model well-suited for structured tasks
-- Loop protection — understanding when an agent can get stuck and how to prevent it
+- `{placeholder}` injection — how ADK substitutes session state into instructions
+- Subagent testing — why subagents can't be tested directly and how to work around it
+- `gemini-2.0-flash` — a fast, capable model well-suited for structured tasks
 
 ---
 
@@ -58,7 +59,58 @@ Orchestrator
 
 > **The `description` is the contract.** The orchestrator never sees the subagent's instruction — only its `name` and `description`. Write the description so it clearly answers: *"what does this agent do and when should I call it?"*
 
-You will wire this in Module 5. For now, focus on building `SearchAgent` so it works correctly in isolation — verify it in the dev UI before connecting it to the orchestrator.
+You will wire this in Module 5. Before then, you need a way to test `SearchAgent` in isolation — keep reading.
+
+---
+
+## `{placeholder}` injection
+
+ADK substitutes `{key}` tokens in an agent's `instruction` string with the corresponding value from `session.state` before every LLM call. This is how subagents receive data that the orchestrator has already written:
+
+```typescript
+const searchAgent = new LlmAgent({
+  instruction: `
+    Search for {genre} events in {city} around {dateHint}.
+  `,
+});
+```
+
+When the orchestrator has written `state["city"] = "Cologne"` and `state["genre"] = "techno"`, the instruction the LLM actually sees is:
+
+```
+Search for techno events in Cologne around this weekend.
+```
+
+**This is why subagents can't be tested directly in the web UI.** If you export `searchAgent` as the default and start `pnpm dev`, session state is empty. ADK will still attempt the substitution, but the values are missing — the LLM receives the literal placeholder strings `{city}`, `{genre}`, etc. instead of real values, and the search query will be nonsense.
+
+> **Optional placeholders:** Use `{key?}` if a key might not exist. ADK substitutes it with an empty string when missing. Required placeholders (no `?`) throw a runtime error if the key is absent — fail fast rather than silently passing garbage to the LLM.
+
+---
+
+## The `default` export and the dev UI
+
+ADK's web UI (`pnpm dev`) and CLI (`pnpm start`) only serve the **`default` export** of the entry file you point them at. This is the single agent they load, display in the UI, and route messages to.
+
+For a standalone agent file like `agent.ts`, the pattern is simple: create one agent and export it as `default`.
+
+For a **subagent file**, the pattern is different. You export the subagent itself as a **named export** (so the orchestrator can import it in Module 5), and you export a **test harness** as the `default` export (so you can run the file in `pnpm dev` during development).
+
+```typescript
+// Named export — used by the orchestrator in Module 5
+export const searchAgent = new LlmAgent({ ... });
+
+// Default export — used by pnpm dev / pnpm start for standalone testing
+export default new LlmAgent({
+  name: "SearchTestHarness",
+  tools: [
+    getCurrentDate,
+    new AgentTool({ agent: searchAgent }),  // ← calls the real agent
+  ],
+  instruction: `Collect city/genre/date from the user, then call SearchAgent.`,
+});
+```
+
+The test harness is a thin orchestrator: it collects the inputs the user types, writes them to session state, and then delegates to `searchAgent` via `AgentTool`. The real `searchAgent` runs normally — it reads `{city}` etc. from state just as it will in production.
 
 ---
 
@@ -188,27 +240,17 @@ export const tavilyTool = new FunctionTool({
 
 ```typescript
 // agents/search.ts
-import { LlmAgent } from "@google/adk";
+import { LlmAgent, FunctionTool, AgentTool } from "@google/adk";
 import { Schema, Type } from "@google/genai";
+import { z } from "zod";
 import { tavilyTool } from "../tools/tavilyTool.js";
 
-const searchResultSchema: Schema = {
-  type: Type.ARRAY,
-  items: {
-    type: Type.OBJECT,
-    properties: {
-      url:     { type: Type.STRING, description: "Source URL" },
-      title:   { type: Type.STRING, description: "Page title" },
-      snippet: { type: Type.STRING, description: "Short content excerpt" },
-      score:   { type: Type.NUMBER, description: "Relevance score 0–1" },
-    },
-    required: ["url", "title", "snippet", "score"],
-  },
-};
+const searchResultSchema: Schema = { /* ... as above ... */ };
 
+// Named export — imported by the orchestrator in Module 5
 export const searchAgent = new LlmAgent({
   name: "SearchAgent",
-  model: "gemini-3.1-flash-lite",
+  model: "gemini-2.0-flash",
   description: "Searches the web for events matching the user's constraints and returns a structured list of URLs.",
   instruction: `
     You are a search specialist. Your only job is to find relevant event pages.
@@ -228,6 +270,44 @@ export const searchAgent = new LlmAgent({
   tools: [tavilyTool],
   outputSchema: searchResultSchema,
   outputKey: "searchResults",
+});
+
+// Default export — test harness for pnpm dev / pnpm start
+const getCurrentDate = new FunctionTool({
+  name: "get_current_date",
+  description: "Returns today's date and writes it to session state.",
+  parameters: z.object({}),
+  execute: async (_params, context) => {
+    const date = new Date().toLocaleDateString("de-DE", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
+    });
+    context.state["date"] = date;
+    return { date };
+  },
+});
+
+export default new LlmAgent({
+  name: "SearchTestHarness",
+  model: "gemini-2.5-flash",
+  description: "Dev-only wrapper for testing SearchAgent in isolation.",
+  instruction: `
+    You are a test harness for the SearchAgent subagent.
+
+    On every message:
+    1. Call get_current_date to write today's date to state.
+    2. Extract from the user's message:
+       - city (REQUIRED — ask if missing)
+       - genre (use "" if not specified)
+       - dateHint (REQUIRED — ask if missing)
+       Write all three directly to session state.
+    3. Only proceed once you have both city and a date hint.
+    4. Call SearchAgent to run the search.
+    5. Report back how many results were found and list their titles and URLs.
+  `,
+  tools: [
+    getCurrentDate,
+    new AgentTool({ agent: searchAgent }),
+  ],
 });
 ```
 
@@ -264,18 +344,31 @@ Always return a consistent shape from tools — the agent's LLM needs to handle 
 
 ### Step 5 — Create the Search Agent
 
-Create `agents/search.ts`:
+Create `agents/search.ts` with two exports:
 
-1. Import `tavilyTool` from `../tools/tavilyTool.js`
-2. Define `searchResultSchema` using `Schema` and `Type` from `@google/genai`
-3. Create an `LlmAgent` with:
-   - `model: "gemini-3.1-flash-lite"`
+**Named export — `searchAgent`:**
+
+1. Import `LlmAgent, FunctionTool, AgentTool` from `@google/adk` and `z` from `zod`
+2. Import `tavilyTool` from `../tools/tavilyTool.js`
+3. Define `searchResultSchema` using `Schema` and `Type` from `@google/genai`
+4. Create and export `searchAgent` as a named `const` with:
+   - `model: "gemini-2.0-flash"`
    - `tools: [tavilyTool]`
    - `outputSchema: searchResultSchema`
    - `outputKey: "searchResults"`
    - An instruction that reads `{city}`, `{genre}`, `{dateHint}`, `{date}` from state and generates a single English query
 
-**Verify the schema:** After the agent runs, open the **State** tab in the dev UI. You should see `searchResults` as a JSON array with `url`, `title`, `snippet`, and `score` fields.
+**Default export — test harness:**
+
+5. Create a `get_current_date` `FunctionTool` (same as in `agent.ts`) that writes `date` to state
+6. Add a `export default new LlmAgent(...)` — the `SearchTestHarness` — that:
+   - Uses `model: "gemini-2.5-flash"`
+   - Has `getCurrentDate` and `new AgentTool({ agent: searchAgent })` in its `tools` array
+   - Has an instruction that collects `city`, `genre`, `dateHint` from the user, writes them to state, then calls `SearchAgent`
+
+**Why two exports?** The named export is the real subagent — the orchestrator will import it in Module 5. The default export is a thin wrapper that lets you test the subagent in the dev UI right now, by acting as a minimal orchestrator that seeds the state values `SearchAgent` needs.
+
+**Verify the schema:** After the harness calls `SearchAgent`, open the **State** tab in the dev UI. You should see `searchResults` as a JSON array with `url`, `title`, `snippet`, and `score` fields.
 
 **Validate with Zod in the orchestrator (preview of Module 5):**
 
@@ -301,10 +394,19 @@ if (!parsed.success) {
 
 ### ✅ Done when…
 
-- Ask: *"Find techno events in Cologne this weekend"*
-- The **State** tab shows `searchResults` as a JSON array of 5 objects
-- Each object has `url`, `title`, `snippet`, and `score`
-- You can see the `tavily_search` tool call in the **Events** tab
+**To test:** point `pnpm dev` at the search agent file:
+
+```bash
+npx adk web agents/search.ts
+```
+
+Ask: *"Find techno events in Cologne this weekend"*
+
+- The harness calls `get_current_date`, extracts `city`/`genre`/`dateHint`, writes them to state
+- The harness calls `SearchAgent` via `AgentTool`
+- The **State** tab shows `date`, `city`, `genre`, `dateHint`, and `searchResults`
+- `searchResults` is a JSON array of 5 objects, each with `url`, `title`, `snippet`, and `score`
+- The **Events** tab shows the `tavily_search` tool call nested inside the `SearchAgent` invocation
 
 ---
 
