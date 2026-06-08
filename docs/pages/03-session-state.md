@@ -198,4 +198,4 @@ Try a vague query — *"Find some events"* — and confirm the agent asks for ci
 
 ---
 
-→ Next: [Module 3 — Search Agent](04-search-agent.md)
+→ Next: [Module 3 — Search Agent](pages/04-search-agent.md)
