@@ -42,14 +42,6 @@ curl http://localhost:11235/health
 # → {"status":"ok"}
 ```
 
-## 4. Start the MCP server (for Module 6)
-
-```bash
-cd mcp-server
-npm install
-npm run dev
-```
-
 ## Running the agent
 
 From the repo root:
