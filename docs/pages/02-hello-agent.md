@@ -92,7 +92,7 @@ npm run dev
 
 Open [http://localhost:8000](http://localhost:8000) and ask the agent:
 
-> *"What events are happening in Cologne this weekend?"*
+> *"What events are happening in Cologne this friday?"*
 
 Notice: it doesn't know today's date. Let's fix that.
 
