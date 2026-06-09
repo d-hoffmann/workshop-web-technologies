@@ -128,7 +128,7 @@ const getCurrentDate = new FunctionTool({
 
 const agent = new LlmAgent({
   name: "EventResearcher",
-  model: "gemini-2.5-flash",
+  model: "gemini-3.1-flash-lite",
   description: "An event research assistant that finds live events based on user constraints.",
   instruction: `
     You are an event research assistant. Your goal is to find events matching
@@ -143,10 +143,8 @@ const agent = new LlmAgent({
        Write these to session state immediately.
     3. Only proceed once you have both city and a date.
     4. Call SearchAgent to find relevant event URLs.
-    5. Call CrawlAgent to extract structured event details from those pages.
-    6. Read session state key "crawledEvents" and summarise the results for the user.
-       Present events clearly: name, venue, date/time, price, and a short description.
-       If no events were found or all fields are "NA", say so honestly.
+     5. Call CrawlAgent to extract structured event details from those pages.
+     6. Once CrawlAgent returns its results, do NOT call any more tools. Write a short plain-text summary of the found events directly to the user and stop. This is your final response.
   `,
   tools: [
     getCurrentDate,
@@ -209,7 +207,7 @@ Open `agent.ts` (the root file you've been building since Module 1).
 **Hint — model:**
 
 ```typescript
-model: "gemini-2.5-flash",   // orchestrator needs reasoning; use 2.5-flash
+model: "gemini-3.1-flash-lite",   // orchestrator needs reasoning; use 2.5-flash
 ```
 
 ---

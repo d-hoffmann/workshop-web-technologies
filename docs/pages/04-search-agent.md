@@ -308,7 +308,7 @@ const getCurrentDate = new FunctionTool({ /* same as before */ });
 
 const agent = new LlmAgent({
   name: "EventResearcher",
-  model: "gemini-2.5-flash",
+  model: "gemini-3.1-flash-lite",
   instruction: `
     You are an event research assistant.
 

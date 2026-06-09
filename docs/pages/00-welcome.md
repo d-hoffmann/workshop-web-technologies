@@ -10,7 +10,7 @@ User: "Find techno events in Cologne this friday"
          ▼
   ┌─────────────────────┐
   │   EventResearcher   │  ← Orchestrator: extracts city/genre/date,
-  │   gemini-2.5-flash  │    delegates, summarises results
+  │   gemini-3.1-flash-lite  │    delegates, summarises results
   └──┬──────────────────┘
      │  session.state carries data between agents
      │

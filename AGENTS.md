@@ -50,7 +50,7 @@ Start from each service directory:
 - TypeScript with `NodeNext` module resolution — **use `.js` extensions in relative imports**
 - `tsconfig.json` only includes root-level `*.ts` files (`"include": ["*.ts"]`); exercise files need their own tsconfig or to be added
 - ADK agents: `import { Agent, FunctionTool } from "@google/adk"`; tools use Zod schemas
-- Default model: `gemini-2.5-flash`
+- Default model: `gemini-3.1-flash-lite`
 - `.env` is gitignored; `.env.sample` is the template
 - Commits follow conventional commits (see `.opencode/skills/commit/`)
 

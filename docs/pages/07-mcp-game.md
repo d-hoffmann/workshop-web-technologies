@@ -126,7 +126,7 @@ const mcpTools = new MCPToolset({
 
 const agent = new Agent({
   name: "GameAgent",
-  model: "gemini-2.5-flash",
+  model: "gemini-3.1-flash-lite",
   instruction: `
     You are playing an interactive text-adventure game.
     Use the available MCP tools to explore the world, pick up items,

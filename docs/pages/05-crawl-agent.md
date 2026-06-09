@@ -310,7 +310,7 @@ const agent = new LlmAgent({
     3. Only proceed once you have both city and a date.
     4. Call SearchAgent to find relevant event URLs.
     5. Call CrawlAgent to extract structured event data from those pages.
-    6. Summarise the crawled events for the user — list each event with name, venue, time, and price.
+    6. Once CrawlAgent returns its results, do NOT call any more tools. Write a short plain-text summary of the found events directly to the user and stop. This is your final response.
   `,
   tools: [
     getCurrentDate,
