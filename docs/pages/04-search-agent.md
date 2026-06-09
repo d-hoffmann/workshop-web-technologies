@@ -404,7 +404,7 @@ const SearchResultSchema = z.object({
 });
 
 // After SearchAgent runs, in a follow-up tool or instruction:
-const raw = context.state["searchResults"];
+const raw = context.state.get("searchResults");
 const parsed = SearchResultSchema.safeParse(raw);
 if (!parsed.success) {
   console.error("SearchAgent returned invalid data:", parsed.error);

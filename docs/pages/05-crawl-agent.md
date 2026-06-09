@@ -6,7 +6,6 @@
 - `fit_markdown` — content-filtered markdown that removes noise for LLMs
 - `beforeAgentCallback` — pre-fetching data before the agent's LLM runs
 - Prompt injection attacks — and how to defend against them
-- Loop protection — hard-capping tool calls inside an agent
 
 ---
 
@@ -104,7 +103,7 @@ Response shape:
 - Return `undefined` to let the agent run normally
 - Return a `Content` object to **skip the agent entirely** and return that content directly
 
-**Use case here:** pre-fetch `fit_markdown` for all 5 URLs from the previous step. The agent's LLM then receives the pre-fetched content via state injection — no need to call the crawl tool five times in sequence during the LLM turn.
+**Use case here:** pre-fetch `fit_markdown` for all 5 URLs from the previous step. The agent's LLM then receives the pre-fetched content via state injection — no need to call any tool during the LLM turn.
 
 ```typescript
 import { LlmAgent, type CallbackContext } from "@google/adk";
@@ -113,7 +112,7 @@ import { Content } from "@google/genai";
 async function prefetchPages(
   context: CallbackContext
 ): Promise<Content | undefined> {
-  const searchResults = context.state["searchResults"] as SearchResult[];
+  const searchResults = context.state.get("searchResults") as SearchResult[];
 
   if (!searchResults?.length) {
     // Nothing to fetch — let the agent handle it
@@ -122,12 +121,12 @@ async function prefetchPages(
 
   const fetched = await Promise.all(
     searchResults.map(async ({ url }) => {
-      const markdown = await crawlPage(url);   // your crawl helper
+      const markdown = await fetchFitMarkdown(url);   // your crawl helper
       return { url, markdown };
     })
   );
 
-  context.state["prefetchedMarkdown"] = fetched;
+  context.state.set("prefetchedMarkdown", fetched);
   return undefined;   // agent runs normally with pre-fetched data in state
 }
 
@@ -140,30 +139,6 @@ const crawlAgent = new LlmAgent({
   `,
 });
 ```
-
----
-
-## Loop protection
-
-The crawl agent has tools it can call during its LLM turn (for pages where `fit_markdown` didn't contain enough data). Without limits, the agent could call the crawl tool indefinitely.
-
-**Hard cap via state counter:**
-
-```typescript
-execute: async ({ url }, context) => {
-  const callCount = (context.state["crawlCallCount"] as number) ?? 0;
-
-  if (callCount >= 5) {   // max 5 extra tool calls total across all URLs
-    return { error: "Max crawl calls reached", markdown: "" };
-  }
-
-  context.state["crawlCallCount"] = callCount + 1;
-
-  // ... do the actual crawl
-},
-```
-
-This counter lives in session state — it accumulates across all tool calls in the agent's turn, preventing runaway loops regardless of how many URLs the agent tries.
 
 ---
 
@@ -207,14 +182,14 @@ This does not make the agent immune (prompt injection is an unsolved problem), b
 
 ---
 
-## The Crawl Tool
+## The Crawl Agent
 
 ```typescript
-// tools/crawlTool.ts
-import { FunctionTool } from "@google/adk";
-import { z } from "zod";
+// agents/crawl.ts
+import { LlmAgent, type CallbackContext } from "@google/adk";
+import { Schema, Type, type Content } from "@google/genai";
 
-export async function fetchFitMarkdown(url: string): Promise<string> {
+async function fetchFitMarkdown(url: string): Promise<string> {
   const res = await fetch("http://localhost:11235/crawl", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -248,53 +223,15 @@ export async function fetchFitMarkdown(url: string): Promise<string> {
   return data.results?.[0]?.markdown?.fit_markdown ?? "";
 }
 
-export const crawlTool = new FunctionTool({
-  name: "crawl_page",
-  description:
-    "Fetches a single web page and returns its content as clean markdown. " +
-    "Only call this if the pre-fetched content for a URL is insufficient.",
-  parameters: z.object({
-    url: z.string().url().describe("The URL to crawl"),
-  }),
-  execute: async ({ url }, context) => {
-    // Hard cap: max 5 extra crawl calls per agent run
-    const callCount = (context.state["crawlCallCount"] as number) ?? 0;
-    if (callCount >= 5) {
-      return { error: "Max crawl calls reached for this run", markdown: "" };
-    }
-    context.state["crawlCallCount"] = callCount + 1;
-
-    try {
-      const markdown = await fetchFitMarkdown(url);
-      return { url, markdown };
-    } catch (err) {
-      return { url, error: String(err), markdown: "" };
-    }
-  },
-});
-```
-
----
-
-## The Crawl Agent
-
-```typescript
-// agents/crawl.ts
-import { LlmAgent, type CallbackContext } from "@google/adk";
-import { Schema, Type, type Content } from "@google/genai";
-import { crawlTool, fetchFitMarkdown } from "../tools/crawlTool.js";
-
 async function prefetchPages(
   context: CallbackContext
 ): Promise<Content | undefined> {
-  const searchResults = (context.state["searchResults"] ?? []) as Array<{
+  const searchResults = (context.state.get("searchResults") ?? []) as Array<{
     url: string;
     title: string;
   }>;
 
   if (!searchResults.length) return undefined;
-
-  context.state["crawlCallCount"] = 0;
 
   const fetched = await Promise.allSettled(
     searchResults.map(async ({ url }) => {
@@ -307,9 +244,9 @@ async function prefetchPages(
     })
   );
 
-  context.state["prefetchedMarkdown"] = fetched
+  context.state.set("prefetchedMarkdown", fetched
     .filter((r) => r.status === "fulfilled")
-    .map((r) => (r as PromiseFulfilledResult<any>).value);
+    .map((r) => (r as PromiseFulfilledResult<any>).value));
 
   return undefined;
 }
@@ -355,14 +292,8 @@ export const crawlAgent = new LlmAgent({
 
     Use "NA" for any field you cannot find.
 
-    If a page's markdown is empty or clearly insufficient (less than
-    50 words of relevant content), call crawl_page ONCE for that URL
-    to attempt a fresh fetch. Do not call crawl_page more than once
-    per URL.
-
     Output a JSON array of event objects. No extra text.
   `,
-  tools: [crawlTool],
   outputSchema: eventSchema,
   outputKey: "crawledEvents",
 });
@@ -422,41 +353,27 @@ Run `npm run dev` and send a message — the orchestrator handles constraint ext
 > Make sure Crawl4AI is running: `docker compose up -d` in the `crawl4ai/` directory.
 > Health check: `curl http://localhost:11235/health`
 
-### Step 6 — Create the Crawl tool
-
-Create `tools/crawlTool.ts`:
-
-1. Export a `fetchFitMarkdown(url: string): Promise<string>` helper that POSTs to `http://localhost:11235/crawl` with the `PruningContentFilter` config and returns `results[0].markdown.fit_markdown`
-2. Export `crawlTool` as a `FunctionTool` named `crawl_page`
-3. In `execute`, check `context.state["crawlCallCount"]` — return an error if `>= 5`, otherwise increment and call `fetchFitMarkdown`
-4. Wrap the fetch in try/catch and return `{ url, error: String(err), markdown: "" }` on failure
-
----
-
-### Step 7 — Create the Crawl Agent
+### Step 6 — Create the Crawl Agent
 
 Create `agents/crawl.ts`:
 
-1. Import `LlmAgent, type CallbackContext` from `@google/adk` and `Schema, Type, type Content` from `@google/genai`
-2. Import `crawlTool` and `fetchFitMarkdown` from `../tools/crawlTool.js`
-3. Write a `prefetchPages` async function matching the `beforeAgentCallback` signature:
+1. Write a `fetchFitMarkdown(url: string): Promise<string>` helper that POSTs to `http://localhost:11235/crawl` with the `PruningContentFilter` config and returns `results[0].markdown.fit_markdown`
+2. Write a `prefetchPages` async function matching the `beforeAgentCallback` signature:
    - Reads `state["searchResults"]`
-   - Resets `state["crawlCallCount"] = 0`
    - Calls `fetchFitMarkdown` for each URL (use `Promise.allSettled` to tolerate failures)
    - Writes results to `state["prefetchedMarkdown"]`
    - Returns `undefined`
-4. Define `eventSchema` with `Schema`/`Type` from `@google/genai` — six fields, all required
-5. Export `crawlAgent` as a named `const` with:
+3. Define `eventSchema` with `Schema`/`Type` from `@google/genai` — six fields, all required
+4. Export `crawlAgent` as a named `const` with:
    - `model: "gemini-2.0-flash"`
    - `beforeAgentCallback: prefetchPages`
-   - `tools: [crawlTool]`
    - `outputSchema: eventSchema`
    - `outputKey: "crawledEvents"`
    - The prompt injection defence instruction
 
 ---
 
-### Step 8 — Wire `CrawlAgent` into `agent.ts`
+### Step 7 — Wire `CrawlAgent` into `agent.ts`
 
 Open `agent.ts` (the version you finished at the end of Module 3):
 
@@ -484,6 +401,115 @@ Then run `npm run dev` and ask: *"Find techno events in Cologne this friday"*
 - The **State** tab shows `prefetchedMarkdown` (array of `{url, markdown}`) and `crawledEvents` (array of event objects)
 - Fields that couldn't be found show `"NA"`
 - The orchestrator's final reply lists events with name, venue, time, and price
+
+---
+
+## Bonus — Deeper fetching with a Crawl Tool
+
+Sometimes `beforeAgentCallback` pre-fetches a page but gets back very little content — a JS-heavy page that needs a second attempt, or a URL that redirected. A `crawl_page` **tool** lets the agent re-fetch individual pages on demand during its LLM turn.
+
+### Loop protection
+
+Without limits, the agent could call the crawl tool indefinitely. A hard cap via a state counter prevents this:
+
+```typescript
+execute: async ({ url }, context) => {
+  const callCount = (context.state.get("crawlCallCount") as number) ?? 0;
+
+  if (callCount >= 5) {   // max 5 extra tool calls total across all URLs
+    return { error: "Max crawl calls reached", markdown: "" };
+  }
+
+  context.state.set("crawlCallCount", callCount + 1);
+
+  // ... do the actual crawl
+},
+```
+
+This counter lives in session state — it accumulates across all tool calls in the agent's turn, preventing runaway loops regardless of how many URLs the agent tries.
+
+### Bonus Step — Add the Crawl Tool
+
+Create `tools/crawlTool.ts`:
+
+1. Move `fetchFitMarkdown` here and export it (you can import it in `agents/crawl.ts` instead of defining it inline)
+2. Export `crawlTool` as a `FunctionTool` named `crawl_page`
+3. In `execute`, check `context.state.get("crawlCallCount")` — return an error if `>= 5`, otherwise increment and call `fetchFitMarkdown`
+4. Wrap the fetch in try/catch and return `{ url, error: String(err), markdown: "" }` on failure
+
+Then update `agents/crawl.ts`:
+
+1. Import `crawlTool` and `fetchFitMarkdown` from `../tools/crawlTool.js`
+2. Reset `context.state.set("crawlCallCount", 0)` at the start of `prefetchPages`
+3. Add `tools: [crawlTool]` to the `crawlAgent` definition
+4. Update the agent instruction to tell the agent it can call `crawl_page` once per URL if the pre-fetched content is insufficient (less than ~50 words of relevant content)
+
+Full `crawlTool.ts`:
+
+```typescript
+// tools/crawlTool.ts
+import { FunctionTool } from "@google/adk";
+import { z } from "zod";
+
+export async function fetchFitMarkdown(url: string): Promise<string> {
+  const res = await fetch("http://localhost:11235/crawl", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      urls: [url],
+      crawler_config: {
+        cache_mode: "bypass",
+        excluded_tags: ["nav", "footer", "header", "script", "style"],
+      },
+      browser_config: {
+        headless: true,
+        user_agent:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+          "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        stealth_mode: true,
+      },
+      markdown_generator: {
+        content_filter: {
+          type: "PruningContentFilter",
+          threshold: 0.48,
+          threshold_type: "dynamic",
+          min_word_threshold: 5,
+        },
+      },
+    }),
+  });
+
+  if (!res.ok) throw new Error(`Crawl4AI error: ${res.status}`);
+
+  const data = await res.json();
+  return data.results?.[0]?.markdown?.fit_markdown ?? "";
+}
+
+export const crawlTool = new FunctionTool({
+  name: "crawl_page",
+  description:
+    "Fetches a single web page and returns its content as clean markdown. " +
+    "Only call this if the pre-fetched content for a URL is insufficient.",
+  parameters: z.object({
+    url: z.string().url().describe("The URL to crawl"),
+  }),
+  execute: async ({ url }, context) => {
+    // Hard cap: max 5 extra crawl calls per agent run
+    const callCount = (context.state.get("crawlCallCount") as number) ?? 0;
+    if (callCount >= 5) {
+      return { error: "Max crawl calls reached for this run", markdown: "" };
+    }
+    context.state.set("crawlCallCount", callCount + 1);
+
+    try {
+      const markdown = await fetchFitMarkdown(url);
+      return { url, markdown };
+    } catch (err) {
+      return { url, error: String(err), markdown: "" };
+    }
+  },
+});
+```
 
 ---
 
