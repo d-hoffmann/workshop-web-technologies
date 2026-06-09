@@ -7,29 +7,16 @@ export async function fetchMarkdown(url: string): Promise<string> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       urls: [url],
+      crawler_config: {
+        cache_mode: "bypass",
+        excluded_tags: ["nav", "footer", "header", "script", "style"],
+      },
       browser_config: {
         headless: true,
         user_agent:
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
           "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        extra_args: [], // Pass empty array if required by stricter validator types
-      },
-      crawler_config: {
-        cache_mode: "bypass",
-        excluded_tags: ["nav", "footer", "header", "script", "style"],
-        markdown_generator: {
-          type: "DefaultMarkdownGenerator", // Explicit strategy typing hint for the API parser
-          params: {
-            content_filter: {
-              type: "PruningContentFilter",
-              params: {
-                threshold: 0.2,            // Relaxed density threshold to prevent empty results
-                threshold_type: "fixed",
-                min_word_threshold: 5,
-              }
-            }
-          }
-        },
+        stealth_mode: true,
       },
     }),
   });
@@ -37,14 +24,10 @@ export async function fetchMarkdown(url: string): Promise<string> {
   if (!res.ok) throw new Error(`Crawl4AI error: ${res.status}`);
 
   const data = await res.json();
-  
-  // Direct extraction path adhering to CrawlResult structural layout
-  if (data.success && data.results && data.results.length > 0) {
-    const result = data.results[0];
-    return result.markdown?.fit_markdown || result.markdown?.raw_markdown || "";
-  }
-  
-  return "";
+  return data.results?.[0]?.markdown?.markdown ?? "";
+  // Tip: Crawl4AI also supports fit_markdown (via PruningContentFilter) which
+  // strips boilerplate for a smaller, more signal-dense result. See the
+  // Crawl4AI docs for the markdown_generator config if you want to experiment.
 }
 
 export const crawlTool = new FunctionTool({
@@ -56,6 +39,7 @@ export const crawlTool = new FunctionTool({
     url: z.string().url().describe("The URL to crawl"),
   }),
   execute: async ({ url }, context) => {
+    // Hard cap: max 5 extra crawl calls per agent run
     const callCount = (context?.state.get("crawlCallCount") as number) ?? 0;
     if (callCount >= 5) {
       return { error: "Max crawl calls reached for this run", markdown: "" };

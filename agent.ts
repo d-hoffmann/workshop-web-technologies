@@ -44,7 +44,7 @@ const setConstraints = new FunctionTool({
 
 const agent = new Agent({
   name: "event_researcher",
-  model: "gemini-3.1-flash-lite",
+  model: "gemini-2.5-flash",
   instruction: `
 You are an event research assistant.
 
@@ -58,7 +58,6 @@ On every new conversation:
 4. Call set_constraints with city, genre, and dateHint to save them to session state.
 5. Call SearchAgent to find relevant event URLs.
 6. Call CrawlAgent to extract structured event details from those pages.
-7. Once CrawlAgent returns its results, do NOT call any more tools. Write a short plain-text summary of the found events directly to the user and stop. This is your final response.
 `,
   tools: [
     getCurrentDate,

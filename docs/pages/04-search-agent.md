@@ -8,6 +8,7 @@
 - `{placeholder}` injection — how ADK substitutes session state into instructions
 - `AgentTool` — wrapping a subagent so an orchestrator can call it like a tool
 - Named exports — keeping subagents importable while wiring them into the orchestrator
+- Constraint extraction tool — writing city/genre/dateHint to state so subagents can read them
 
 ---
 
@@ -48,7 +49,7 @@ When the orchestrator calls `SearchAgent`:
 ```
 Orchestrator (agent.ts)
     │
-    │  writes → state["city"], state["genre"], state["dateHint"]
+    │  set_constraints tool → state["city"], state["genre"], state["dateHint"]
     │
     └── AgentTool → SearchAgent
             │  reads ← state["city"], state["genre"], state["dateHint"]
@@ -294,21 +295,70 @@ export const searchAgent = new LlmAgent({
 
 ---
 
+## The `set_constraints` tool
+
+`SearchAgent` reads `{city}`, `{genre}`, and `{dateHint}` from session state via placeholder injection. That means **something must write those values to state first**. The orchestrator handles this with a dedicated `set_constraints` tool:
+
+```typescript
+// in agent.ts
+const setConstraints = new FunctionTool({
+  name: "set_constraints",
+  description: "Save the user's event constraints (city, genre, dateHint) to session state so subagents can read them.",
+  parameters: z.object({
+    city:     z.string().describe("City where the user wants to find events"),
+    genre:    z.string().describe("Music genre or event type, empty string if not specified"),
+    dateHint: z.string().describe("When the user wants to attend, e.g. 'this weekend', 'next Friday'"),
+  }),
+  execute: async ({ city, genre, dateHint }, context) => {
+    if (context) {
+      context.state.set("city", city);
+      context.state.set("genre", genre);
+      context.state.set("dateHint", dateHint);
+    }
+    return { city, genre, dateHint };
+  },
+});
+```
+
+The orchestrator's instruction tells it to call `set_constraints` **before** calling `SearchAgent`. This guarantees the state keys exist and have real values when the subagent's instruction template is rendered.
+
+> **Why a tool instead of writing state in the instruction?** The LLM cannot write to state directly — only tool `execute` functions can. A dedicated tool with typed parameters also makes the extraction explicit and observable in the Events tab.
+
+---
+
 ## Wiring `SearchAgent` into `agent.ts`
 
 Once `SearchAgent` exists, add it to the orchestrator in `agent.ts`:
 
 ```typescript
 // agent.ts
-import { LlmAgent, AgentTool, FunctionTool } from "@google/adk";
+import { Agent, AgentTool, FunctionTool } from "@google/adk";
 import { z } from "zod";
 import { searchAgent } from "./agents/search.js";
 
 const getCurrentDate = new FunctionTool({ /* same as before */ });
 
-const agent = new LlmAgent({
-  name: "EventResearcher",
-  model: "gemini-3.1-flash-lite",
+const setConstraints = new FunctionTool({
+  name: "set_constraints",
+  description: "Save the user's event constraints (city, genre, dateHint) to session state so subagents can read them.",
+  parameters: z.object({
+    city:     z.string().describe("City where the user wants to find events"),
+    genre:    z.string().describe("Music genre or event type, empty string if not specified"),
+    dateHint: z.string().describe("When the user wants to attend, e.g. 'this weekend', 'next Friday'"),
+  }),
+  execute: async ({ city, genre, dateHint }, context) => {
+    if (context) {
+      context.state.set("city", city);
+      context.state.set("genre", genre);
+      context.state.set("dateHint", dateHint);
+    }
+    return { city, genre, dateHint };
+  },
+});
+
+const agent = new Agent({
+  name: "event_researcher",
+  model: "gemini-2.5-flash",
   instruction: `
     You are an event research assistant.
 
@@ -318,13 +368,14 @@ const agent = new LlmAgent({
        - city (REQUIRED — ask if missing)
        - genre (optional, use "" if not specified)
        - dateHint (REQUIRED — ask if missing)
-       Write these to session state immediately.
     3. Only proceed once you have both city and a date.
-    4. Call SearchAgent to find relevant event URLs.
-    5. Report the search results back to the user — list each title and URL.
+    4. Call set_constraints with city, genre, and dateHint to save them to session state.
+    5. Call SearchAgent to find relevant event URLs.
+    6. Report the search results back to the user — list each title and URL.
   `,
   tools: [
     getCurrentDate,
+    setConstraints,
     new AgentTool({ agent: searchAgent }),
   ],
 });
@@ -386,8 +437,12 @@ Open `agent.ts`:
 
 1. Import `AgentTool` from `@google/adk`
 2. Import `searchAgent` from `./agents/search.js`
-3. Add `new AgentTool({ agent: searchAgent })` to the `tools` array
-4. Update the instruction to add step 4: *"Call SearchAgent to find relevant event URLs"* and step 5: *"Report the search results — list each title and URL"*
+3. Add a `set_constraints` `FunctionTool` that takes `city`, `genre`, `dateHint` as parameters and writes them to `context.state`
+4. Add `set_constraints` and `new AgentTool({ agent: searchAgent })` to the `tools` array
+5. Update the instruction:
+   - Step 4: *"Call `set_constraints` with city, genre, and dateHint to save them to session state"*
+   - Step 5: *"Call SearchAgent to find relevant event URLs"*
+   - Step 6: *"Report the search results — list each title and URL"*
 
 **Validate with Zod (optional but recommended):**
 
@@ -417,7 +472,7 @@ if (!parsed.success) {
 
 Run `npm run dev` and ask: *"Find techno events in Cologne this friday"*
 
-- The **Events** tab shows `get_current_date`, then a `SearchAgent` invocation containing a `tavily_search` tool call
+- The **Events** tab shows `get_current_date`, then `set_constraints`, then a `SearchAgent` invocation containing a `tavily_search` tool call
 - The **State** tab shows `date`, `city`, `genre`, `dateHint`, and `searchResults`
 - `searchResults` is a JSON object `{ "results": [...] }` containing 5 objects, each with `url`, `title`, `snippet`, and `score`
 - The orchestrator's final reply lists the search results

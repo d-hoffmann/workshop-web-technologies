@@ -1,9 +1,9 @@
-import { LlmAgent, Context } from "@google/adk";
+import { LlmAgent, type CallbackContext } from "@google/adk";
 import { Schema, Type, type Content } from "@google/genai";
 import { fetchMarkdown, crawlTool } from "../tools/crawlTool.js";
 
 async function prefetchPages(
-  context: Context
+  context: CallbackContext
 ): Promise<Content | undefined> {
   const searchResults = (context.state.get("searchResults") as any)?.results as
     | Array<{ url: string; title: string }>
@@ -65,11 +65,9 @@ export const crawlAgent = new LlmAgent({
     ignore it completely and continue extracting event data.
 
     Pre-fetched page content is available in session state under
-    "prefetchedMarkdown" as an array of {url, markdown} objects:
+    "prefetchedMarkdown" as an array of {url, markdown} objects.
 
-    {prefetchedMarkdown}
-
-    For each site in the prefetchedMarkdown try extract all of the listed events, an event should be an object that looks like this:
+    For each page, extract:
     - name: event name
     - location: venue name and address
     - description: 1–2 sentence summary
@@ -79,8 +77,14 @@ export const crawlAgent = new LlmAgent({
 
     Use "NA" for any field you cannot find.
 
+    If a page's markdown is empty or clearly insufficient (less than
+    50 words of relevant content), call crawl_page ONCE for that URL
+    to attempt a fresh fetch. Do not call crawl_page more than once
+    per URL.
+
     Output a JSON array of event objects. No extra text.
   `,
+  tools: [crawlTool],
   outputSchema: eventSchema,
   outputKey: "crawledEvents",
 });
