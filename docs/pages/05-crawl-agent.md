@@ -310,7 +310,6 @@ const agent = new LlmAgent({
     3. Only proceed once you have both city and a date.
     4. Call SearchAgent to find relevant event URLs.
     5. Call CrawlAgent to extract structured event data from those pages.
-    6. Once CrawlAgent returns its results, do NOT call any more tools. Write a short plain-text summary of the found events directly to the user and stop. This is your final response.
   `,
   tools: [
     getCurrentDate,
@@ -322,7 +321,7 @@ const agent = new LlmAgent({
 export default agent;
 ```
 
-Run `npm run dev` and send a message — the orchestrator handles constraint extraction, delegates search to `SearchAgent`, then passes control to `CrawlAgent`. You can watch all three agents in the **Events** tab.
+Run `npm run dev` and send a message — the orchestrator handles constraint extraction, delegates search to `SearchAgent`, then passes control to `CrawlAgent`. You can watch all three agents in the **Events** tab. The structured event data lands in `state["crawledEvents"]` — ready for the orchestrator to summarise in the next module.
 
 ---
 
@@ -361,7 +360,6 @@ Open `agent.ts` (the version you finished at the end of Module 3):
 2. Add `new AgentTool({ agent: crawlAgent })` to the `tools` array alongside `searchAgent`
 3. Update the orchestrator instruction:
    - Change step 5 from *"Report the search results — list each title and URL"* to *"Call CrawlAgent to extract structured event data from those pages"*
-   - Add step 6: *"Summarise the crawled events — list each event with name, venue, time, and price"*
 
 ---
 
@@ -380,7 +378,7 @@ Then run `npm run dev` and ask: *"Find techno events in Cologne this friday"*
 - The **Events** tab shows `get_current_date`, `SearchAgent` (with `tavily_search` inside), then `CrawlAgent` (with `beforeAgentCallback` pre-fetch activity)
 - The **State** tab shows `prefetchedMarkdown` (array of `{url, markdown}`) and `crawledEvents` (array of event objects)
 - Fields that couldn't be found show `"NA"`
-- The orchestrator's final reply lists events with name, venue, time, and price
+- The orchestrator's response acknowledges the crawl completed — the final formatted summary comes in the next module
 
 ---
 
