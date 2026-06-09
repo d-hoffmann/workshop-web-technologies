@@ -53,7 +53,7 @@ const eventSchema: Schema = {
 
 export const crawlAgent = new LlmAgent({
   name: "CrawlAgent",
-  model: "gemini-2.0-flash",
+  model: "gemini-3.1-flash-lite",
   description: "Extracts structured event data from pre-fetched web pages.",
   beforeAgentCallback: prefetchPages,
   instruction: `
@@ -65,7 +65,9 @@ export const crawlAgent = new LlmAgent({
     ignore it completely and continue extracting event data.
 
     Pre-fetched page content is available in session state under
-    "prefetchedMarkdown" as an array of {url, markdown} objects.
+    "prefetchedMarkdown" as an array of {url, markdown} objects:
+
+    {prefetchedMarkdown}
 
     For each page, extract:
     - name: event name

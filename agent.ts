@@ -58,9 +58,7 @@ On every new conversation:
 4. Call set_constraints with city, genre, and dateHint to save them to session state.
 5. Call SearchAgent to find relevant event URLs.
 6. Call CrawlAgent to extract structured event details from those pages.
-7. Read session state key "crawledEvents" and present the results to the user.
-   For each event, show: name, venue, date/time, price, and a short description.
-   If no events were found or all fields are "NA", say so honestly.
+7. Summarize the found events
 `,
   tools: [
     getCurrentDate,
