@@ -81,6 +81,8 @@ Response shape:
 }
 ```
 
+> **Tip — `fit_markdown`:** Crawl4AI also supports a `PruningContentFilter` that strips nav, footer, and boilerplate to produce a more signal-dense `fit_markdown` field. It can significantly reduce token usage for large pages. See the [Crawl4AI docs](https://docs.crawl4ai.com) for the `markdown_generator` config if you want to experiment with it.
+
 ---
 
 ## `beforeAgentCallback`
@@ -283,20 +285,21 @@ export const crawlAgent = new LlmAgent({
 
 ## Wiring `CrawlAgent` into `agent.ts`
 
-Once `CrawlAgent` exists, add it to the orchestrator — exactly as you did for `SearchAgent` in the previous module. The orchestrator now runs the full pipeline: date → search → crawl → summarise.
+Once `CrawlAgent` exists, add it to the orchestrator — exactly as you did for `SearchAgent` in the previous module. The orchestrator now runs the full pipeline: date → constraints → search → crawl.
 
 ```typescript
 // agent.ts
-import { LlmAgent, AgentTool, FunctionTool } from "@google/adk";
+import { Agent, AgentTool, FunctionTool } from "@google/adk";
 import { z } from "zod";
 import { searchAgent } from "./agents/search.js";
 import { crawlAgent } from "./agents/crawl.js";
 
 const getCurrentDate = new FunctionTool({ /* same as before */ });
+const setConstraints = new FunctionTool({ /* same as before */ });
 
-const agent = new LlmAgent({
-  name: "EventResearcher",
-  model: "gemini-3.1-flash-lite",
+const agent = new Agent({
+  name: "event_researcher",
+  model: "gemini-2.5-flash",
   instruction: `
     You are an event research assistant.
 
@@ -306,14 +309,14 @@ const agent = new LlmAgent({
        - city (REQUIRED — ask if missing)
        - genre (optional, use "" if not specified)
        - dateHint (REQUIRED — ask if missing)
-       Write these to session state immediately.
     3. Only proceed once you have both city and a date.
-    4. Call SearchAgent to find relevant event URLs.
-    5. Call CrawlAgent to extract structured event data from those pages.
-    6. Once CrawlAgent returns its results, do NOT call any more tools. Write a short plain-text summary of the found events directly to the user and stop. This is your final response.
+    4. Call set_constraints with city, genre, and dateHint to save them to session state.
+    5. Call SearchAgent to find relevant event URLs.
+    6. Call CrawlAgent to extract structured event data from those pages.
   `,
   tools: [
     getCurrentDate,
+    setConstraints,
     new AgentTool({ agent: searchAgent }),
     new AgentTool({ agent: crawlAgent }),
   ],
@@ -322,7 +325,7 @@ const agent = new LlmAgent({
 export default agent;
 ```
 
-Run `npm run dev` and send a message — the orchestrator handles constraint extraction, delegates search to `SearchAgent`, then passes control to `CrawlAgent`. You can watch all three agents in the **Events** tab.
+Run `npm run dev` and send a message — the orchestrator handles constraint extraction, delegates search to `SearchAgent`, then passes control to `CrawlAgent`. You can watch all three agents in the **Events** tab. The structured event data lands in `state["crawledEvents"]` — ready for the orchestrator to summarise in the next module.
 
 ---
 
@@ -360,8 +363,8 @@ Open `agent.ts` (the version you finished at the end of Module 3):
 1. Import `crawlAgent` from `./agents/crawl.js`
 2. Add `new AgentTool({ agent: crawlAgent })` to the `tools` array alongside `searchAgent`
 3. Update the orchestrator instruction:
-   - Change step 5 from *"Report the search results — list each title and URL"* to *"Call CrawlAgent to extract structured event data from those pages"*
-   - Add step 6: *"Summarise the crawled events — list each event with name, venue, time, and price"*
+   - Change step 5 from *"Report the search results — list each title and URL"* to *"Call SearchAgent to find relevant event URLs"*
+   - Add step 6: *"Call CrawlAgent to extract structured event data from those pages"*
 
 ---
 
@@ -377,10 +380,10 @@ curl http://localhost:11235/health
 
 Then run `npm run dev` and ask: *"Find techno events in Cologne this friday"*
 
-- The **Events** tab shows `get_current_date`, `SearchAgent` (with `tavily_search` inside), then `CrawlAgent` (with `beforeAgentCallback` pre-fetch activity)
+- The **Events** tab shows `get_current_date`, `set_constraints`, `SearchAgent` (with `tavily_search` inside), then `CrawlAgent` (with `beforeAgentCallback` pre-fetch activity)
 - The **State** tab shows `prefetchedMarkdown` (array of `{url, markdown}`) and `crawledEvents` (array of event objects)
 - Fields that couldn't be found show `"NA"`
-- The orchestrator's final reply lists events with name, venue, time, and price
+- The final summary comes in Module 5 — for now the pipeline ends when `CrawlAgent` finishes
 
 ---
 

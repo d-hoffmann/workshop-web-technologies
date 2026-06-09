@@ -1,12 +1,10 @@
-# Module 5 — Orchestration
+# Module 5 — Orchestration & Final Answer
 
 ## Concepts
 
-- `AgentTool` — wrapping a sub-agent so the orchestrator can call it like a tool
-- Orchestrator pattern — one coordinator, multiple specialists
-- Project file structure — one file per agent, shared tools directory
-- Zod validation on state reads — catching schema mismatches early
-- Full pipeline wiring — connecting all modules into the final agent
+- Orchestrator as synthesiser — reading sub-agent output from state and producing the final user-facing response
+- Why explicit "stop" matters — preventing the orchestrator from looping
+- Full pipeline assembly — connecting all modules into one end-to-end flow
 
 ---
 
@@ -23,35 +21,49 @@ The orchestrator never does search or crawling itself. It delegates and synthesi
 
 ---
 
-## `AgentTool`
+## The orchestrator's final job
 
-`AgentTool` wraps an `LlmAgent` so the orchestrator can call it exactly like a `FunctionTool`. The orchestrator's LLM reads the sub-agent's `description` to decide when to invoke it:
+By the end of Module 4 you have a pipeline that:
 
-```typescript
-import { LlmAgent, AgentTool } from "@google/adk";
-import { searchAgent } from "./agents/search.js";
-import { crawlAgent } from "./agents/crawl.js";
+1. Writes `date`, `userQuery`, `city`, `genre`, `dateHint` to state
+2. Calls `SearchAgent` → writes `searchResults` to state
+3. Calls `CrawlAgent` → writes `crawledEvents` to state
 
-const orchestrator = new LlmAgent({
-  tools: [
-    getCurrentDate,
-    new AgentTool({ agent: searchAgent }),
-    new AgentTool({ agent: crawlAgent }),
-  ],
-});
+The orchestrator has **one job left**: read `state["crawledEvents"]` and turn the structured array of event objects into a clear, human-readable summary for the user.
+
+This is the **synthesiser** role — the orchestrator does not search or crawl. It delegates those tasks to specialists and then combines the results into a final response:
+
+```
+CrawlAgent writes → state["crawledEvents"]   (structured JSON array)
+                              │
+                              ▼
+                       Orchestrator reads
+                              │
+                              ▼
+              "Here are the events I found: ..."   (prose summary to user)
 ```
 
-> **Write the `description` carefully.** The orchestrator's LLM uses `searchAgent.description` to decide *when* to call it — the same way it uses `FunctionTool.description`. A vague description leads to the wrong agent being called at the wrong time.
+---
 
-### State sharing with `AgentTool`
+## Why explicit "stop" matters
 
-When the orchestrator calls a sub-agent via `AgentTool`, they share the **same session state**. Keys written by the orchestrator's tools are immediately readable by the sub-agent (via `{key}` injection), and keys written by the sub-agent (via `outputKey`) are immediately readable by the orchestrator after the call returns.
+Without a clear stopping instruction, an LLM agent may loop — re-calling tools it already called, or generating intermediate tool calls to "double-check" results. Instructing the orchestrator to stop after summarising is important:
+
+```typescript
+instruction: `
+  ...
+  7. Once CrawlAgent returns its results, do NOT call any more tools.
+     Write a short plain-text summary of the found events directly to
+     the user and stop. This is your final response.
+     Format each event as: name — venue — time — price.
+`,
+```
+
+The phrase **"do NOT call any more tools"** combined with **"this is your final response"** is the minimal reliable pattern for halting the agent.
 
 ---
 
 ## Project file structure
-
-Rather than one large `agent.ts`, split the code into logical files:
 
 ```
 agent.ts                    ← orchestrator (default export)
@@ -59,7 +71,7 @@ agents/
   search.ts                 ← SearchAgent
   crawl.ts                  ← CrawlAgent
 tools/
-  tavilyTool.ts             ← Tavily FunctionTool + helper
+  tavilyTool.ts             ← Tavily FunctionTool
   crawlTool.ts              ← crawl_page FunctionTool + fetchMarkdown helper (bonus)
 ```
 
@@ -67,44 +79,13 @@ tools/
 
 ---
 
-## Validating state reads with Zod
+## The complete `agent.ts`
 
-After a sub-agent writes to state via `outputKey`, validate before the orchestrator uses the data:
-
-```typescript
-import { z } from "zod";
-
-const EventSchema = z.object({
-  name:        z.string(),
-  location:    z.string(),
-  description: z.string(),
-  time:        z.string(),
-  price:       z.string(),
-  url:         z.string(),
-});
-
-const CrawledEventsSchema = z.array(EventSchema);
-
-// In the orchestrator instruction or a post-processing tool:
-const raw = context.state.get("crawledEvents");
-const result = CrawledEventsSchema.safeParse(raw);
-
-if (!result.success) {
-  // Log and degrade gracefully rather than crashing
-  console.error("CrawlAgent returned unexpected data:", result.error.flatten());
-  return { events: [] };
-}
-
-const events = result.data;
-```
-
----
-
-## The full `agent.ts`
+Here is the final orchestrator, combining everything from Modules 1–4 with the closing summarisation step:
 
 ```typescript
 // agent.ts
-import { LlmAgent, AgentTool, FunctionTool } from "@google/adk";
+import { Agent, AgentTool, FunctionTool } from "@google/adk";
 import { z } from "zod";
 import { searchAgent } from "./agents/search.js";
 import { crawlAgent } from "./agents/crawl.js";
@@ -120,15 +101,35 @@ const getCurrentDate = new FunctionTool({
       month:   "long",
       day:     "numeric",
     });
-    context.state.set("date",      date);
-    context.state.set("userQuery", context.userContent ?? "");
+    if (context) {
+      context.state.set("date",      date);
+      context.state.set("userQuery", context.userContent ?? "");
+    }
     return { date };
   },
 });
 
-const agent = new LlmAgent({
-  name: "EventResearcher",
-  model: "gemini-3.1-flash-lite",
+const setConstraints = new FunctionTool({
+  name: "set_constraints",
+  description: "Save the user's event constraints (city, genre, dateHint) to session state so subagents can read them.",
+  parameters: z.object({
+    city:     z.string().describe("City where the user wants to find events"),
+    genre:    z.string().describe("Music genre or event type, empty string if not specified"),
+    dateHint: z.string().describe("When the user wants to attend, e.g. 'this weekend', 'next Friday'"),
+  }),
+  execute: async ({ city, genre, dateHint }, context) => {
+    if (context) {
+      context.state.set("city",     city);
+      context.state.set("genre",    genre);
+      context.state.set("dateHint", dateHint);
+    }
+    return { city, genre, dateHint };
+  },
+});
+
+const agent = new Agent({
+  name: "event_researcher",
+  model: "gemini-2.5-flash",
   description: "An event research assistant that finds live events based on user constraints.",
   instruction: `
     You are an event research assistant. Your goal is to find events matching
@@ -140,14 +141,18 @@ const agent = new LlmAgent({
        - city: the city they want events in (REQUIRED — ask if not provided)
        - genre: music genre or event type (optional — use "" if not specified)
        - dateHint: when they want to go (REQUIRED — ask if not provided)
-       Write these to session state immediately.
     3. Only proceed once you have both city and a date.
-    4. Call SearchAgent to find relevant event URLs.
-     5. Call CrawlAgent to extract structured event details from those pages.
-     6. Once CrawlAgent returns its results, do NOT call any more tools. Write a short plain-text summary of the found events directly to the user and stop. This is your final response.
+    4. Call set_constraints with city, genre, and dateHint to save them to session state.
+    5. Call SearchAgent to find relevant event URLs.
+    6. Call CrawlAgent to extract structured event details from those pages.
+    7. Once CrawlAgent returns its results, do NOT call any more tools.
+       Write a short plain-text summary of the found events directly to
+       the user and stop. This is your final response.
+       Format each event as: name — venue — time — price.
   `,
   tools: [
     getCurrentDate,
+    setConstraints,
     new AgentTool({ agent: searchAgent }),
     new AgentTool({ agent: crawlAgent }),
   ],
@@ -166,7 +171,7 @@ User message
     ▼
 Orchestrator
     ├── get_current_date ──► state["date"], state["userQuery"]
-    ├── extracts ──────────► state["city"], state["genre"], state["dateHint"]
+    ├── set_constraints ───► state["city"], state["genre"], state["dateHint"]
     │
     ├── AgentTool → SearchAgent
     │       ├── reads {city}, {genre}, {dateHint}, {date} from state
@@ -180,7 +185,7 @@ Orchestrator
     │       ├── (bonus) optionally calls crawl_page (max 5 extra calls total)
     │       └── outputKey ──────────► state["crawledEvents"]
     │
-    └── reads state["crawledEvents"], summarises → user
+    └── reads state["crawledEvents"], summarises → user   ← you add this now
 ```
 
 ---
@@ -189,26 +194,22 @@ Orchestrator
 
 > **Stuck?** Check out the solution branch: `git checkout solution/05-orchestration`
 
-### Step 8 — Wire `agent.ts`
+### Step 8 — Add the final summary step to `agent.ts`
 
-Open `agent.ts` (the root file you've been building since Module 1).
+Open `agent.ts` (the version you finished at the end of Module 4 — it already has `SearchAgent` and `CrawlAgent` wired in).
 
-1. Import `AgentTool` from `@google/adk`
-2. Import `searchAgent` from `./agents/search.js`
-3. Import `crawlAgent` from `./agents/crawl.js`
-4. Add both to the orchestrator's `tools` array wrapped in `new AgentTool({ agent: ... })`
-5. Update the orchestrator instruction to match the pattern above — it should:
-   - Call `get_current_date` first
-   - Extract and write `city`, `genre`, `dateHint` to state
-   - Ask for missing required values before searching
-   - Delegate to `SearchAgent`, then `CrawlAgent`
-   - Read `crawledEvents` from state and summarise
+The orchestrator instruction currently ends at step 6 ("Call CrawlAgent"). Add step 7:
 
-**Hint — model:**
+1. After step 6 in the instruction, add:
+   ```
+   7. Once CrawlAgent returns its results, do NOT call any more tools.
+      Write a short plain-text summary of the found events directly to
+      the user and stop. This is your final response.
+      Format each event as: name — venue — time — price.
+   ```
+2. Run the full pipeline and verify the agent produces a formatted event list.
 
-```typescript
-model: "gemini-3.1-flash-lite",   // orchestrator needs reasoning; use 2.5-flash
-```
+That is the only code change. The wiring from Modules 3 and 4 is already complete.
 
 ---
 
@@ -224,9 +225,10 @@ Ask: *"Find techno events in Cologne this friday"*
 
 In the **Events** tab you should see:
 1. `get_current_date` tool call
-2. `SearchAgent` invocation (with `tavily_search` inside)
-3. `CrawlAgent` invocation (with `beforeAgentCallback` activity)
-4. Final orchestrator response with a structured event list
+2. `set_constraints` tool call
+3. `SearchAgent` invocation (with `tavily_search` inside)
+4. `CrawlAgent` invocation (with `beforeAgentCallback` activity)
+5. Final orchestrator response with a formatted event list
 
 In the **State** tab you should see all pipeline keys: `date`, `userQuery`, `city`, `genre`, `dateHint`, `searchResults`, `prefetchedMarkdown`, `crawledEvents`.
 
@@ -249,7 +251,3 @@ In the **State** tab you should see all pipeline keys: `date`, `userQuery`, `cit
 - All state keys appear in the State tab
 - The agent asks follow-up questions for missing city or date
 - The final response lists events with name, venue, time, price, and description
-
----
-
-

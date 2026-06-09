@@ -60,6 +60,7 @@ Agents communicate through shared session state. Each agent reads what it needs 
 | `genre` | Orchestrator | SearchAgent |
 | `dateHint` | Orchestrator | SearchAgent |
 | `searchResults` | SearchAgent | CrawlAgent |
+| `prefetchedMarkdown` | CrawlAgent `beforeAgentCallback` | CrawlAgent LLM |
 | `crawledEvents` | CrawlAgent | Orchestrator |
 
 ---
