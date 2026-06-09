@@ -144,7 +144,7 @@ const mySchema: Schema = {
 };
 
 const agent = new LlmAgent({
-  model: "gemini-3.1-flash-lite"
+  model: "gemini-3.1-flash-lite",
   outputSchema: mySchema,   // ← enforces JSON structure
   outputKey: "myResults",   // ← auto-saves to state["myResults"]
   instruction: "...",
@@ -169,6 +169,7 @@ Controlled generation is reliable, but there is one failure mode to understand: 
 |------|------------|
 | Model produces empty array | Add `minItems: 1` to schema; validate after reading |
 | Instruction doesn't mention schema fields | Mirror the schema field names in the instruction |
+| `outputSchema` combined with `tools` on unsupported models | `gemini-3.1-flash-lite` supports both — always verify in model release notes |
 
 > **Read what you store.** After an agent writes to state via `outputKey`, always validate the result with Zod before the next agent reads it. This catches schema mismatches early and gives a clear error message instead of a silent downstream failure.
 
@@ -234,17 +235,23 @@ import { Schema, Type } from "@google/genai";
 import { tavilyTool } from "../tools/tavilyTool.js";
 
 const searchResultSchema: Schema = {
-  type: Type.ARRAY,
-  items: {
-    type: Type.OBJECT,
-    properties: {
-      url:     { type: Type.STRING, description: "Source URL" },
-      title:   { type: Type.STRING, description: "Page title" },
-      snippet: { type: Type.STRING, description: "Short content excerpt" },
-      score:   { type: Type.NUMBER, description: "Relevance score 0–1" },
+  type: Type.OBJECT,
+  properties: {
+    results: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          url:     { type: Type.STRING, description: "Source URL" },
+          title:   { type: Type.STRING, description: "Page title" },
+          snippet: { type: Type.STRING, description: "Short content excerpt" },
+          score:   { type: Type.NUMBER, description: "Relevance score 0–1" },
+        },
+        required: ["url", "title", "snippet", "score"],
+      },
     },
-    required: ["url", "title", "snippet", "score"],
   },
+  required: ["results"],
 };
 
 export const searchAgent = new LlmAgent({
@@ -260,11 +267,22 @@ export const searchAgent = new LlmAgent({
     - Date hint: {dateHint}
     - Today's date: {date}
 
-    Generate exactly ONE English search query combining city, genre, and date.
-    Call tavily_search with that query.
-    Return the results array exactly as received from the tool.
+    Step 1 — Resolve the exact date:
+      Today is {date} (ISO format YYYY-MM-DD).
+      Convert {dateHint} to a concrete calendar date relative to today.
+      Examples: if today is 2026-06-09 (Tuesday) and dateHint is "this Friday", the date is 2026-06-13.
+      Use the resolved date (e.g. "June 13 2026") in the query — never use the raw dateHint phrase.
 
-    Output ONLY the JSON array of results — no explanation, no extra text.
+    Step 2 — Build and execute the query:
+      Generate exactly ONE English search query combining city, genre, and the resolved date.
+      Example: "techno events Cologne June 13 2026"
+      Call tavily_search with that query.
+
+    Step 3 — Return results:
+      Include ALL results returned by the tool — do not drop or truncate any entries.
+      Return the results wrapped in an object with a "results" key.
+
+    Output ONLY the JSON object { "results": [...] } — no explanation, no extra text.
   `,
   tools: [tavilyTool],
   outputSchema: searchResultSchema,
@@ -290,7 +308,7 @@ const getCurrentDate = new FunctionTool({ /* same as before */ });
 
 const agent = new LlmAgent({
   name: "EventResearcher",
-  model: "gemini-3.1-flash-lite",
+  model: "gemini-2.5-flash",
   instruction: `
     You are an event research assistant.
 
@@ -303,7 +321,7 @@ const agent = new LlmAgent({
        Write these to session state immediately.
     3. Only proceed once you have both city and a date.
     4. Call SearchAgent to find relevant event URLs.
-    5. Tell the user the search completed successfully and that they can inspect the results in the session state under the key "searchResults".
+    5. Report the search results back to the user — list each title and URL.
   `,
   tools: [
     getCurrentDate,
@@ -352,13 +370,13 @@ Create `agents/search.ts`:
 1. Import `LlmAgent` from `@google/adk`
 2. Import `Schema` and `Type` from `@google/genai`
 3. Import `tavilyTool` from `../tools/tavilyTool.js`
-4. Define `searchResultSchema` — an array of objects with `url`, `title`, `snippet`, `score`, all required
+4. Define `searchResultSchema` — an object with a `results` array of objects, each with `url`, `title`, `snippet`, `score`, all required
 5. Export `searchAgent` as a named `const` with:
    - `model: "gemini-3.1-flash-lite"`
    - `tools: [tavilyTool]`
    - `outputSchema: searchResultSchema`
    - `outputKey: "searchResults"`
-   - An instruction that reads `{city}`, `{genre}`, `{dateHint}`, `{date}` from state and generates a single English query
+   - An instruction that reads `{city}`, `{genre}`, `{dateHint}`, `{date}` from state, resolves `{dateHint}` to a concrete calendar date, and generates a single English query using that explicit date
 
 ---
 
@@ -369,19 +387,21 @@ Open `agent.ts`:
 1. Import `AgentTool` from `@google/adk`
 2. Import `searchAgent` from `./agents/search.js`
 3. Add `new AgentTool({ agent: searchAgent })` to the `tools` array
-4. Update the instruction to add step 4: *"Call SearchAgent to find relevant event URLs"* and step 5: *"Tell the user the search completed successfully and that they can inspect the results in the session state under the key `searchResults`"*
+4. Update the instruction to add step 4: *"Call SearchAgent to find relevant event URLs"* and step 5: *"Report the search results — list each title and URL"*
 
 **Validate with Zod (optional but recommended):**
 
 ```typescript
 import { z } from "zod";
 
-const SearchResultSchema = z.array(z.object({
-  url:     z.string().url(),
-  title:   z.string(),
-  snippet: z.string(),
-  score:   z.number(),
-}));
+const SearchResultSchema = z.object({
+  results: z.array(z.object({
+    url:     z.string().url(),
+    title:   z.string(),
+    snippet: z.string(),
+    score:   z.number(),
+  })),
+});
 
 // After SearchAgent runs, in a follow-up tool or instruction:
 const raw = context.state["searchResults"];
@@ -399,8 +419,8 @@ Run `npm run dev` and ask: *"Find techno events in Cologne this weekend"*
 
 - The **Events** tab shows `get_current_date`, then a `SearchAgent` invocation containing a `tavily_search` tool call
 - The **State** tab shows `date`, `city`, `genre`, `dateHint`, and `searchResults`
-- `searchResults` is a JSON array of 5 objects, each with `url`, `title`, `snippet`, and `score`
-- The orchestrator's final reply confirms the search completed and directs the user to inspect `searchResults` in the State tab
+- `searchResults` is a JSON object `{ "results": [...] }` containing 5 objects, each with `url`, `title`, `snippet`, and `score`
+- The orchestrator's final reply lists the search results
 
 ---
 
