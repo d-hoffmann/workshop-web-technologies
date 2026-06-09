@@ -60,7 +60,7 @@ agents/
   crawl.ts                  ← CrawlAgent
 tools/
   tavilyTool.ts             ← Tavily FunctionTool + helper
-  crawlTool.ts              ← crawl_page FunctionTool + fetchFitMarkdown helper
+  crawlTool.ts              ← crawl_page FunctionTool + fetchFitMarkdown helper (bonus)
 ```
 
 > **`NodeNext` imports:** TypeScript is configured with `moduleResolution: NodeNext`. Always use `.js` extensions in relative imports — e.g., `import { searchAgent } from "./agents/search.js"` — even though the source files are `.ts`.
@@ -86,7 +86,7 @@ const EventSchema = z.object({
 const CrawledEventsSchema = z.array(EventSchema);
 
 // In the orchestrator instruction or a post-processing tool:
-const raw = context.state["crawledEvents"];
+const raw = context.state.get("crawledEvents");
 const result = CrawledEventsSchema.safeParse(raw);
 
 if (!result.success) {
@@ -120,8 +120,8 @@ const getCurrentDate = new FunctionTool({
       month:   "long",
       day:     "numeric",
     });
-    context.state["date"]      = date;
-    context.state["userQuery"] = context.userContent ?? "";
+    context.state.set("date",      date);
+    context.state.set("userQuery", context.userContent ?? "");
     return { date };
   },
 });
@@ -179,7 +179,7 @@ Orchestrator
     │       ├── beforeAgentCallback pre-fetches fit_markdown for all 5 URLs
     │       │   └── writes ─────────► state["prefetchedMarkdown"]
     │       ├── LLM extracts event fields from prefetched markdown
-    │       ├── optionally calls crawl_page (max 5 extra calls total)
+    │       ├── (bonus) optionally calls crawl_page (max 5 extra calls total)
     │       └── outputKey ──────────► state["crawledEvents"]
     │
     └── reads state["crawledEvents"], summarises → user
@@ -227,7 +227,7 @@ Ask: *"Find techno events in Cologne this friday"*
 In the **Events** tab you should see:
 1. `get_current_date` tool call
 2. `SearchAgent` invocation (with `tavily_search` inside)
-3. `CrawlAgent` invocation (with `beforeAgentCallback` activity and optionally `crawl_page`)
+3. `CrawlAgent` invocation (with `beforeAgentCallback` activity)
 4. Final orchestrator response with a structured event list
 
 In the **State** tab you should see all pipeline keys: `date`, `userQuery`, `city`, `genre`, `dateHint`, `searchResults`, `prefetchedMarkdown`, `crawledEvents`.

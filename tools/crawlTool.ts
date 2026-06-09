@@ -45,11 +45,11 @@ export const crawlTool = new FunctionTool({
   }),
   execute: async ({ url }, context) => {
     // Hard cap: max 5 extra crawl calls per agent run
-    const callCount = (context?.state.get("crawlCallCount") as number) ?? 0;
+    const callCount = (context.state["crawlCallCount"] as number) ?? 0;
     if (callCount >= 5) {
       return { error: "Max crawl calls reached for this run", markdown: "" };
     }
-    context?.state.set("crawlCallCount", callCount + 1);
+    context.state["crawlCallCount"] = callCount + 1;
 
     try {
       const markdown = await fetchFitMarkdown(url);

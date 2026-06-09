@@ -22,7 +22,7 @@ You are an expert in Google's Agent Development Kit (ADK). Help the user build, 
 import { LlmAgent } from '@google/adk';
 
 const agent = new LlmAgent({
-    model: "gemini-2.0-flash",
+    model: "gemini-3.1-flash-lite",
     instruction: "You are a helpful assistant.",
     name: "my_agent",
 });
