@@ -370,6 +370,51 @@ export const crawlAgent = new LlmAgent({
 
 ---
 
+## Wiring `CrawlAgent` into `agent.ts`
+
+Once `CrawlAgent` exists, add it to the orchestrator — exactly as you did for `SearchAgent` in the previous module. The orchestrator now runs the full pipeline: date → search → crawl → summarise.
+
+```typescript
+// agent.ts
+import { LlmAgent, AgentTool, FunctionTool } from "@google/adk";
+import { z } from "zod";
+import { searchAgent } from "./agents/search.js";
+import { crawlAgent } from "./agents/crawl.js";
+
+const getCurrentDate = new FunctionTool({ /* same as before */ });
+
+const agent = new LlmAgent({
+  name: "EventResearcher",
+  model: "gemini-2.5-flash",
+  instruction: `
+    You are an event research assistant.
+
+    On every new conversation:
+    1. Call get_current_date to capture today's date and the user's query in state.
+    2. Extract from the user's message:
+       - city (REQUIRED — ask if missing)
+       - genre (optional, use "" if not specified)
+       - dateHint (REQUIRED — ask if missing)
+       Write these to session state immediately.
+    3. Only proceed once you have both city and a date.
+    4. Call SearchAgent to find relevant event URLs.
+    5. Call CrawlAgent to extract structured event data from those pages.
+    6. Summarise the crawled events for the user — list each event with name, venue, time, and price.
+  `,
+  tools: [
+    getCurrentDate,
+    new AgentTool({ agent: searchAgent }),
+    new AgentTool({ agent: crawlAgent }),
+  ],
+});
+
+export default agent;
+```
+
+Run `npm run dev` and send a message — the orchestrator handles constraint extraction, delegates search to `SearchAgent`, then passes control to `CrawlAgent`. You can watch all three agents in the **Events** tab.
+
+---
+
 ## Exercise
 
 > **Stuck?** Check out the solution branch: `git checkout solution/04-crawl-agent`
@@ -413,11 +458,13 @@ Create `agents/crawl.ts`:
 
 ### Step 8 — Wire `CrawlAgent` into `agent.ts`
 
-Open `agent.ts`:
+Open `agent.ts` (the version you finished at the end of Module 3):
 
 1. Import `crawlAgent` from `./agents/crawl.js`
-2. Add `new AgentTool({ agent: crawlAgent })` to the `tools` array
-3. Update the instruction to add: after `SearchAgent` returns, call `CrawlAgent`, then summarise the crawled events for the user
+2. Add `new AgentTool({ agent: crawlAgent })` to the `tools` array alongside `searchAgent`
+3. Update the orchestrator instruction:
+   - Change step 5 from *"Report the search results — list each title and URL"* to *"Call CrawlAgent to extract structured event data from those pages"*
+   - Add step 6: *"Summarise the crawled events — list each event with name, venue, time, and price"*
 
 ---
 
