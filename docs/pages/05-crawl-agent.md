@@ -124,8 +124,9 @@ const crawlAgent = new LlmAgent({
   name: "CrawlAgent",
   beforeAgentCallback: prefetchPages,   // ← runs before first LLM call
   instruction: `
-    Extract event details from the pre-fetched page content in session state.
-    ...
+    Extract event details from the pre-fetched page content:
+
+    {prefetchedMarkdown}
   `,
 });
 ```
@@ -263,6 +264,8 @@ export const crawlAgent = new LlmAgent({
 
     Pre-fetched page content is available in session state under
     "prefetchedMarkdown" as an array of {url, markdown} objects.
+
+    {prefetchedMarkdown}
 
     For each page, extract:
     - name: event name

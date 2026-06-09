@@ -67,6 +67,8 @@ export const crawlAgent = new LlmAgent({
     Pre-fetched page content is available in session state under
     "prefetchedMarkdown" as an array of {url, markdown} objects.
 
+    {prefetchedMarkdown}
+
     For each page, extract:
     - name: event name
     - location: venue name and address
