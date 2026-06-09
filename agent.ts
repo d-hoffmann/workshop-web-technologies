@@ -1,6 +1,7 @@
 import { Agent, AgentTool, FunctionTool } from "@google/adk";
 import { z } from "zod";
 import { searchAgent } from "./agents/search.js";
+import { crawlAgent } from "./agents/crawl.js";
 
 const getCurrentDate = new FunctionTool({
   name: "get_current_date",
@@ -56,9 +57,10 @@ On every new conversation:
 3. Only proceed once you have both a city and a date hint.
 4. Call set_constraints with city, genre, and dateHint to save them to session state.
 5. Call SearchAgent to find relevant event URLs.
-6. Report the search results back to the user — list each title and URL.
+6. Call CrawlAgent to extract structured event data from those pages.
+7. Summarise the crawled events for the user — list each event with name, venue, time, and price.
 `,
-  tools: [getCurrentDate, setConstraints, new AgentTool({ agent: searchAgent })],
+  tools: [getCurrentDate, setConstraints, new AgentTool({ agent: searchAgent }), new AgentTool({ agent: crawlAgent })],
 });
 
 export default agent;
