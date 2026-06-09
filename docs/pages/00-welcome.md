@@ -5,7 +5,7 @@ This workshop guides you through building a **live Event Research Agent** with G
 ## What you'll build
 
 ```
-User: "Find techno events in Cologne this weekend"
+User: "Find techno events in Cologne this friday"
          │
          ▼
   ┌─────────────────────┐

@@ -222,7 +222,7 @@ Start the dev UI:
 npm run dev
 ```
 
-Ask: *"Find techno events in Cologne this weekend"*
+Ask: *"Find techno events in Cologne this friday"*
 
 In the **Events** tab you should see:
 1. `get_current_date` tool call
