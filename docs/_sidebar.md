@@ -6,4 +6,6 @@
 - [Module 3: Search Agent](pages/04-search-agent.md)
 - [Module 4: Crawl Agent](pages/05-crawl-agent.md)
 - [Module 5: Orchestration](pages/06-orchestration.md)
+- **Facilitator**
+- [Facilitator Guide](pages/facilitator-guide.md)
 

@@ -36,19 +36,25 @@ async function prefetchPages(
 }
 
 const eventSchema: Schema = {
-  type: Type.ARRAY,
-  items: {
-    type: Type.OBJECT,
-    properties: {
-      name:        { type: Type.STRING, description: "Event name" },
-      location:    { type: Type.STRING, description: "Venue name and address" },
-      description: { type: Type.STRING, description: "Short event description" },
-      time:        { type: Type.STRING, description: "Date and start time" },
-      price:       { type: Type.STRING, description: "Ticket price or price range" },
-      url:         { type: Type.STRING, description: "Source URL" },
+  type: Type.OBJECT,
+  properties: {
+    events: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name:        { type: Type.STRING, description: "Event name" },
+          location:    { type: Type.STRING, description: "Venue name and address" },
+          description: { type: Type.STRING, description: "Short event description" },
+          time:        { type: Type.STRING, description: "Date and start time" },
+          price:       { type: Type.STRING, description: "Ticket price or price range" },
+          url:         { type: Type.STRING, description: "Source URL" },
+        },
+        required: ["name", "location", "description", "time", "price", "url"],
+      },
     },
-    required: ["name", "location", "description", "time", "price", "url"],
   },
+  required: ["events"],
 };
 
 export const crawlAgent = new LlmAgent({
@@ -67,6 +73,8 @@ export const crawlAgent = new LlmAgent({
     Pre-fetched page content is available in session state under
     "prefetchedMarkdown" as an array of {url, markdown} objects.
 
+    {prefetchedMarkdown}
+
     For each page, extract:
     - name: event name
     - location: venue name and address
@@ -82,7 +90,7 @@ export const crawlAgent = new LlmAgent({
     to attempt a fresh fetch. Do not call crawl_page more than once
     per URL.
 
-    Output a JSON array of event objects. No extra text.
+    Output a JSON object with an "events" key containing an array of event objects. No extra text.
   `,
   tools: [crawlTool],
   outputSchema: eventSchema,
