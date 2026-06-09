@@ -269,7 +269,7 @@ const eventSchema: Schema = {
 
 export const crawlAgent = new LlmAgent({
   name: "CrawlAgent",
-  model: "gemini-2.0-flash",
+  model: "gemini-3.1-flash-lite",
   description: "Extracts structured event data from pre-fetched web pages.",
   beforeAgentCallback: prefetchPages,
   instruction: `
@@ -316,7 +316,7 @@ const getCurrentDate = new FunctionTool({ /* same as before */ });
 
 const agent = new LlmAgent({
   name: "EventResearcher",
-  model: "gemini-2.5-flash",
+  model: "gemini-3.1-flash-lite",
   instruction: `
     You are an event research assistant.
 
@@ -365,7 +365,7 @@ Create `agents/crawl.ts`:
    - Returns `undefined`
 3. Define `eventSchema` with `Schema`/`Type` from `@google/genai` — six fields, all required
 4. Export `crawlAgent` as a named `const` with:
-   - `model: "gemini-2.0-flash"`
+   - `model: "gemini-3.1-flash-lite"`
    - `beforeAgentCallback: prefetchPages`
    - `outputSchema: eventSchema`
    - `outputKey: "crawledEvents"`
