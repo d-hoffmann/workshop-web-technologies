@@ -69,7 +69,7 @@ export const crawlAgent = new LlmAgent({
 
     {prefetchedMarkdown}
 
-    For each page, extract:
+    For each site in the prefetchedMarkdown try extract all of the listed events, an event should be an object that looks like this:
     - name: event name
     - location: venue name and address
     - description: 1–2 sentence summary
@@ -79,13 +79,8 @@ export const crawlAgent = new LlmAgent({
 
     Use "NA" for any field you cannot find.
 
-    If the pre-fetched markdown for a URL contains fewer than ~50 words of
-    relevant content, you may call crawl_page once for that URL to attempt
-    a fresh fetch.
-
     Output a JSON array of event objects. No extra text.
   `,
   outputSchema: eventSchema,
   outputKey: "crawledEvents",
-  tools: [crawlTool],
 });
