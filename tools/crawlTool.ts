@@ -1,7 +1,7 @@
 import { FunctionTool } from "@google/adk";
 import { z } from "zod";
 
-export async function fetchFitMarkdown(url: string): Promise<string> {
+export async function fetchMarkdown(url: string): Promise<string> {
   const res = await fetch("http://localhost:11235/crawl", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -63,7 +63,7 @@ export const crawlTool = new FunctionTool({
     context?.state.set("crawlCallCount", callCount + 1);
 
     try {
-      const markdown = await fetchFitMarkdown(url);
+      const markdown = await fetchMarkdown(url);
       return { url, markdown };
     } catch (err) {
       return { url, error: String(err), markdown: "" };

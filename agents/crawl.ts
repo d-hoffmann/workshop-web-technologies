@@ -1,6 +1,6 @@
 import { LlmAgent, Context } from "@google/adk";
 import { Schema, Type, type Content } from "@google/genai";
-import { fetchFitMarkdown, crawlTool } from "../tools/crawlTool.js";
+import { fetchMarkdown, crawlTool } from "../tools/crawlTool.js";
 
 async function prefetchPages(
   context: Context
@@ -17,7 +17,7 @@ async function prefetchPages(
   const fetched = await Promise.allSettled(
     searchResults.map(async ({ url }: { url: string }) => {
       try {
-        const markdown = await fetchFitMarkdown(url);
+        const markdown = await fetchMarkdown(url);
         return { url, markdown };
       } catch {
         return { url, markdown: "" };
