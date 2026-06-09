@@ -305,6 +305,8 @@ export const crawlAgent = new LlmAgent({
 
 Once `CrawlAgent` exists, add it to the orchestrator — exactly as you did for `SearchAgent` in the previous module. The orchestrator now runs the full pipeline: date → search → crawl → summarise.
 
+The orchestrator remains the single entry point. Testing `CrawlAgent` means testing `agent.ts` — the orchestrator runs the full pipeline for you. There is no separate test harness.
+
 ```typescript
 // agent.ts
 import { LlmAgent, AgentTool, FunctionTool } from "@google/adk";
