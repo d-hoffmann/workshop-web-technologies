@@ -1,5 +1,6 @@
-import { Agent, FunctionTool } from "@google/adk";
+import { Agent, AgentTool, FunctionTool } from "@google/adk";
 import { z } from "zod";
+import { searchAgent } from "./agents/search.js";
 
 const getCurrentDate = new FunctionTool({
   name: "get_current_date",
@@ -22,6 +23,24 @@ const getCurrentDate = new FunctionTool({
   },
 });
 
+const setConstraints = new FunctionTool({
+  name: "set_constraints",
+  description: "Save the user's event constraints (city, genre, dateHint) to session state so subagents can read them.",
+  parameters: z.object({
+    city:      z.string().describe("City where the user wants to find events"),
+    genre:     z.string().describe("Music genre or event type, empty string if not specified"),
+    dateHint:  z.string().describe("When the user wants to attend, e.g. 'this weekend', 'next Friday'"),
+  }),
+  execute: async ({ city, genre, dateHint }, context) => {
+    if (context) {
+      context.state.set("city", city);
+      context.state.set("genre", genre);
+      context.state.set("dateHint", dateHint);
+    }
+    return { city, genre, dateHint };
+  },
+});
+
 const agent = new Agent({
   name: "event_researcher",
   model: "gemini-2.5-flash",
@@ -30,14 +49,16 @@ You are an event research assistant.
 
 On every new conversation:
 1. Call get_current_date to capture today's date and the user's query in state.
-2. From the user's message, identify:
+2. From the user's message, extract:
    - city: the city they want events in (REQUIRED — ask if missing)
    - genre: music genre or event type (optional, use "" if not specified)
    - dateHint: when they want to attend (REQUIRED — ask if missing)
 3. Only proceed once you have both a city and a date hint.
-4. Summarise: city, genre, dateHint.
+4. Call set_constraints with city, genre, and dateHint to save them to session state.
+5. Call SearchAgent to find relevant event URLs.
+6. Report the search results back to the user — list each title and URL.
 `,
-  tools: [getCurrentDate],
+  tools: [getCurrentDate, setConstraints, new AgentTool({ agent: searchAgent })],
 });
 
 export default agent;
