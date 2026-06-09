@@ -56,6 +56,8 @@ Start from each service directory:
 
 ## Docs site (`docs/`)
 
+> **Docs use `npm run <script>`, not `pnpm`.** The workshop participants who follow the docs may not have pnpm installed. All command references inside `docs/pages/` must use `npm run dev`, `npm run start`, etc. The project itself uses pnpm (lockfile is `pnpm-lock.yaml`) and AGENTS.md/the dev tooling uses pnpm — but never write `pnpm` into the docs content under `docs/pages/`.
+
 - All CDN script/link tags must use `https://` — protocol-relative `//` URLs break on Firefox/HTTP
 - Content is in `docs/pages/`; `_sidebar.md` and `index.html` reference `pages/xx.md` paths
 - `docs/docs/` is an unreferenced stale copy — safe to delete
