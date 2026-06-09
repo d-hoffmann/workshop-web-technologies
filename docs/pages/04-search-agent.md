@@ -86,7 +86,7 @@ Search for techno events in Cologne around this weekend.
 
 ## Named exports and `AgentTool`
 
-ADK's web UI (`pnpm dev`) serves the **`default` export** of the entry file — `agent.ts` in this workshop. Subagents live in separate files and are exposed as **named exports** so the orchestrator can import them:
+ADK's web UI (`npm run dev`) serves the **`default` export** of the entry file — `agent.ts` in this workshop. Subagents live in separate files and are exposed as **named exports** so the orchestrator can import them:
 
 ```typescript
 // agents/search.ts
@@ -97,7 +97,7 @@ import { searchAgent } from "./agents/search.js";
 const orchestrator = new LlmAgent({
   tools: [new AgentTool({ agent: searchAgent })],
 });
-export default orchestrator;                         // default export — served by pnpm dev
+export default orchestrator;                         // default export — served by npm run dev
 ```
 
 The orchestrator remains the single entry point. Testing `SearchAgent` means testing `agent.ts` — the orchestrator runs the full pipeline for you.
@@ -315,7 +315,7 @@ const agent = new LlmAgent({
 export default agent;
 ```
 
-Run `pnpm dev` and send a message — the orchestrator handles constraint extraction, then delegates search to `SearchAgent`. You can watch both agents in the **Events** tab.
+Run `npm run dev` and send a message — the orchestrator handles constraint extraction, then delegates search to `SearchAgent`. You can watch both agents in the **Events** tab.
 
 ---
 
@@ -396,7 +396,7 @@ if (!parsed.success) {
 
 ### ✅ Done when…
 
-Run `pnpm dev` and ask: *"Find techno events in Cologne this weekend"*
+Run `npm run dev` and ask: *"Find techno events in Cologne this weekend"*
 
 - The **Events** tab shows `get_current_date`, then a `SearchAgent` invocation containing a `tavily_search` tool call
 - The **State** tab shows `date`, `city`, `genre`, `dateHint`, and `searchResults`

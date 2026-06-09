@@ -431,7 +431,7 @@ docker compose up -d
 curl http://localhost:11235/health
 ```
 
-Then run `pnpm dev` and ask: *"Find techno events in Cologne this weekend"*
+Then run `npm run dev` and ask: *"Find techno events in Cologne this weekend"*
 
 - The **Events** tab shows `get_current_date`, `SearchAgent` (with `tavily_search` inside), then `CrawlAgent` (with `beforeAgentCallback` pre-fetch activity)
 - The **State** tab shows `prefetchedMarkdown` (array of `{url, markdown}`) and `crawledEvents` (array of event objects)
