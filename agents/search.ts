@@ -36,9 +36,20 @@ Use the following constraints from session state:
 - Date hint: {dateHint}
 - Today's date: {date}
 
-Generate exactly ONE English search query combining city, genre, and date.
-Call tavily_search with that query.
-Return the results wrapped in an object with a "results" key.
+Step 1 — Resolve the exact date:
+  Today is {date} (ISO format YYYY-MM-DD).
+  Convert {dateHint} to a concrete calendar date relative to today.
+  Examples: if today is 2026-06-09 (Tuesday) and dateHint is "this Friday", the date is 2026-06-13.
+  Use the resolved date (e.g. "June 13 2026") in the query — never use the raw dateHint phrase.
+
+Step 2 — Build and execute the query:
+  Generate exactly ONE English search query combining city, genre, and the resolved date.
+  Example: "techno events Cologne June 13 2026"
+  Call tavily_search with that query.
+
+Step 3 — Return results:
+  Include ALL results returned by the tool — do not drop or truncate any entries.
+  Return the results wrapped in an object with a "results" key.
 
 Output ONLY the JSON object { "results": [...] } — no explanation, no extra text.
   `,
