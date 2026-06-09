@@ -75,7 +75,7 @@ const searchAgent = new LlmAgent({
 When the orchestrator has written `state["city"] = "Cologne"` and `state["genre"] = "techno"`, the instruction the LLM actually sees is:
 
 ```
-Search for techno events in Cologne around this weekend.
+Search for techno events in Cologne around this friday.
 ```
 
 **This is why subagents must be driven by an orchestrator** — if session state is empty, the LLM receives the literal placeholder strings `{city}`, `{genre}`, etc. instead of real values. In this module you wire `SearchAgent` directly into `agent.ts` so it always runs with the correct state.
@@ -415,7 +415,7 @@ if (!parsed.success) {
 
 ### ✅ Done when…
 
-Run `npm run dev` and ask: *"Find techno events in Cologne this weekend"*
+Run `npm run dev` and ask: *"Find techno events in Cologne this friday"*
 
 - The **Events** tab shows `get_current_date`, then a `SearchAgent` invocation containing a `tavily_search` tool call
 - The **State** tab shows `date`, `city`, `genre`, `dateHint`, and `searchResults`
