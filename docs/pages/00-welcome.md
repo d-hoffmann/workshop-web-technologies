@@ -22,7 +22,7 @@ User: "Find techno events in Cologne this friday"
      │  state["searchResults"]
      │
   ┌──▼──────────────────┐
-  │    CrawlAgent       │  Crawl4AI (headless browser) — fit_markdown
+   │    CrawlAgent       │  Crawl4AI (headless browser) — markdown
   │ gemini-3.1-flash-   │  pre-fetched via beforeAgentCallback,
   │       lite          │  structured event extraction with outputSchema
   └──┬──────────────────┘
@@ -43,7 +43,7 @@ User: "Find techno events in Cologne this friday"
 | 1 | [Hello Agent & Date Tool](pages/02-hello-agent.md) | `LlmAgent`, system prompts, `FunctionTool`, Zod, dev UI |
 | 2 | [Session State & Constraints](pages/03-session-state.md) | `ToolContext`, `context.state`, state injection `{key}`, scoping |
 | 3 | [Search Agent](pages/04-search-agent.md) | Tavily API, `outputSchema`, `gemini-3.1-flash-lite`, structured output |
-| 4 | [Crawl Agent](pages/05-crawl-agent.md) | Crawl4AI, `beforeAgentCallback`, prompt injection, `fit_markdown` |
+| 4 | [Crawl Agent](pages/05-crawl-agent.md) | Crawl4AI, `beforeAgentCallback`, prompt injection, `markdown` |
 | 5 | [Orchestration](pages/06-orchestration.md) | `AgentTool`, multi-file structure, full pipeline wiring |
 
 ---

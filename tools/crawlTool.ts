@@ -1,7 +1,7 @@
 import { FunctionTool } from "@google/adk";
 import { z } from "zod";
 
-export async function fetchFitMarkdown(url: string): Promise<string> {
+export async function fetchMarkdown(url: string): Promise<string> {
   const res = await fetch("http://localhost:11235/crawl", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -18,21 +18,13 @@ export async function fetchFitMarkdown(url: string): Promise<string> {
           "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         stealth_mode: true,
       },
-      markdown_generator: {
-        content_filter: {
-          type: "PruningContentFilter",
-          threshold: 0.48,
-          threshold_type: "dynamic",
-          min_word_threshold: 5,
-        },
-      },
     }),
   });
 
   if (!res.ok) throw new Error(`Crawl4AI error: ${res.status}`);
 
   const data = await res.json();
-  return data.results?.[0]?.markdown?.fit_markdown ?? "";
+  return data.results?.[0]?.markdown?.markdown ?? "";
 }
 
 export const crawlTool = new FunctionTool({
@@ -52,7 +44,7 @@ export const crawlTool = new FunctionTool({
     context.state["crawlCallCount"] = callCount + 1;
 
     try {
-      const markdown = await fetchFitMarkdown(url);
+      const markdown = await fetchMarkdown(url);
       return { url, markdown };
     } catch (err) {
       return { url, error: String(err), markdown: "" };

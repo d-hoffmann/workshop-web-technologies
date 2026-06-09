@@ -60,7 +60,7 @@ agents/
   crawl.ts                  ← CrawlAgent
 tools/
   tavilyTool.ts             ← Tavily FunctionTool + helper
-  crawlTool.ts              ← crawl_page FunctionTool + fetchFitMarkdown helper (bonus)
+  crawlTool.ts              ← crawl_page FunctionTool + fetchMarkdown helper (bonus)
 ```
 
 > **`NodeNext` imports:** TypeScript is configured with `moduleResolution: NodeNext`. Always use `.js` extensions in relative imports — e.g., `import { searchAgent } from "./agents/search.js"` — even though the source files are `.ts`.
@@ -176,7 +176,7 @@ Orchestrator
     │       └── outputKey ──────────► state["searchResults"]
     │
     ├── AgentTool → CrawlAgent
-    │       ├── beforeAgentCallback pre-fetches fit_markdown for all 5 URLs
+    │       ├── beforeAgentCallback pre-fetches markdown for all 5 URLs
     │       │   └── writes ─────────► state["prefetchedMarkdown"]
     │       ├── LLM extracts event fields from prefetched markdown
     │       ├── (bonus) optionally calls crawl_page (max 5 extra calls total)
