@@ -26,7 +26,7 @@ TAVILY_API_KEY=your_tavily_key_here
 
 **Tavily API key** — free at [app.tavily.com](https://app.tavily.com).
 
-> **Note on model IDs:** This workshop uses `gemini-2.5-flash` for the orchestrator and `gemini-3.1-flash-lite` for sub-agents. Check [ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs/models).
+> **Note on model IDs:** This workshop uses `gemini-3.1-flash-lite` for the orchestrator and `gemini-3.1-flash-lite` for sub-agents. Check [ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs/models).
 
 ## 3. Start Crawl4AI (for Module 4)
 
