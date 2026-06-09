@@ -144,7 +144,7 @@ const mySchema: Schema = {
 };
 
 const agent = new LlmAgent({
-  model: "gemini-2.0-flash",
+  model: "gemini-3.1-flash-lite"
   outputSchema: mySchema,   // ← enforces JSON structure
   outputKey: "myResults",   // ← auto-saves to state["myResults"]
   instruction: "...",
@@ -169,7 +169,6 @@ Controlled generation is reliable, but there is one failure mode to understand: 
 |------|------------|
 | Model produces empty array | Add `minItems: 1` to schema; validate after reading |
 | Instruction doesn't mention schema fields | Mirror the schema field names in the instruction |
-| `outputSchema` combined with `tools` on unsupported models | `gemini-2.0-flash` supports both — always verify in model release notes |
 
 > **Read what you store.** After an agent writes to state via `outputKey`, always validate the result with Zod before the next agent reads it. This catches schema mismatches early and gives a clear error message instead of a silent downstream failure.
 
@@ -250,7 +249,7 @@ const searchResultSchema: Schema = {
 
 export const searchAgent = new LlmAgent({
   name: "SearchAgent",
-  model: "gemini-2.0-flash",
+  model: "gemini-3.1-flash-lite",
   description: "Searches the web for events matching the user's constraints and returns a structured list of URLs.",
   instruction: `
     You are a search specialist. Your only job is to find relevant event pages.
@@ -291,7 +290,7 @@ const getCurrentDate = new FunctionTool({ /* same as before */ });
 
 const agent = new LlmAgent({
   name: "EventResearcher",
-  model: "gemini-2.5-flash",
+  model: "gemini-3.1-flash-lite",
   instruction: `
     You are an event research assistant.
 
@@ -355,7 +354,7 @@ Create `agents/search.ts`:
 3. Import `tavilyTool` from `../tools/tavilyTool.js`
 4. Define `searchResultSchema` — an array of objects with `url`, `title`, `snippet`, `score`, all required
 5. Export `searchAgent` as a named `const` with:
-   - `model: "gemini-2.0-flash"`
+   - `model: "gemini-3.1-flash-lite"`
    - `tools: [tavilyTool]`
    - `outputSchema: searchResultSchema`
    - `outputKey: "searchResults"`
