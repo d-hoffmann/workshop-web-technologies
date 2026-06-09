@@ -303,7 +303,7 @@ const agent = new LlmAgent({
        Write these to session state immediately.
     3. Only proceed once you have both city and a date.
     4. Call SearchAgent to find relevant event URLs.
-    5. Report the search results back to the user — list each title and URL.
+    5. Tell the user the search completed successfully and that they can inspect the results in the session state under the key "searchResults".
   `,
   tools: [
     getCurrentDate,
@@ -369,7 +369,7 @@ Open `agent.ts`:
 1. Import `AgentTool` from `@google/adk`
 2. Import `searchAgent` from `./agents/search.js`
 3. Add `new AgentTool({ agent: searchAgent })` to the `tools` array
-4. Update the instruction to add step 4: *"Call SearchAgent to find relevant event URLs"* and step 5: *"Report the search results — list each title and URL"*
+4. Update the instruction to add step 4: *"Call SearchAgent to find relevant event URLs"* and step 5: *"Tell the user the search completed successfully and that they can inspect the results in the session state under the key `searchResults`"*
 
 **Validate with Zod (optional but recommended):**
 
@@ -400,7 +400,7 @@ Run `npm run dev` and ask: *"Find techno events in Cologne this weekend"*
 - The **Events** tab shows `get_current_date`, then a `SearchAgent` invocation containing a `tavily_search` tool call
 - The **State** tab shows `date`, `city`, `genre`, `dateHint`, and `searchResults`
 - `searchResults` is a JSON array of 5 objects, each with `url`, `title`, `snippet`, and `score`
-- The orchestrator's final reply lists the search results
+- The orchestrator's final reply confirms the search completed and directs the user to inspect `searchResults` in the State tab
 
 ---
 
